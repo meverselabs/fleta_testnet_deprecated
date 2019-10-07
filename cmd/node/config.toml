@@ -1,12 +1,12 @@
 ObserverKeys = [
-	"3UwhKPR25vZyycKXzvTjTTEvaQhLYNdga7Qfu96nkFS",
-	"3LRTWd7Gsjx6nLtyPewi5z1wkMGMT4GDYwnkYWFwDjx",
-	"6NCt1mLHxVSQYrSLJv5QmRWh236eEfw6jUMXAGURBN",
-	"4Muu1gBArNvekXNF5CNSJhRFq31xPejb6kQ8Js1jwRA",
-	"nnyPSWrxKXpozLZ36u9dEM9yH5mna2jk4oq6hCAZ8c"
+	"4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ",
+	"4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR",
+	"37mZ3Gt3yW1TU3tt9zPF9hstUHedoXLsfXi8RTPp8Ze",
+	"4c3FinyoBt1BNwv17tHc5gQKVSvu785rM7zq1R58hhL",
+	"3BeyVF3kiCgYZRdPwC5D2C5xddrzmhB8kSaPzjSi59S",
 ]
-Port = 31000
-APIPort = 58000
+Port = 41000
+APIPort = 48000
 StoreRoot = "./ndata"
 BackendVersion = 1
 RLogHost = ""
@@ -14,7 +14,7 @@ RLogPath = ""
 UseRLog = false
 
 [SeedNodeMap]
-3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf = "seednode1.fletamain.net:31000"
-3EjA1hKkfYZ4KL1c4f67CfaNwb9fCqUneiYkyQEhsGi = "seednode2.fletamain.net:31000"
-314AUADxjj7nWjeNpR8XEoAh4DdX3ArNHaipPGMFQ4u = "seednode3.fletamain.net:31000"
-3n8QNWd7M839ouauhdHvmgmk4NsLj4qGM6tpfoaLNxc = "seednode4.fletamain.net:31000"
+3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf = "80.240.29.147:41000"
+3EjA1hKkfYZ4KL1c4f67CfaNwb9fCqUneiYkyQEhsGi = "78.141.205.254:41000"
+314AUADxjj7nWjeNpR8XEoAh4DdX3ArNHaipPGMFQ4u = "155.138.214.253:41000"
+3n8QNWd7M839ouauhdHvmgmk4NsLj4qGM6tpfoaLNxc = "45.77.211.61:41000"

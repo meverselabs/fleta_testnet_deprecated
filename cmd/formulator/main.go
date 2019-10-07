@@ -111,7 +111,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		NetAddressMap[pubhash] = "wss://" + netAddr
+		NetAddressMap[pubhash] = "ws://" + netAddr
 		ObserverKeys = append(ObserverKeys, pubhash)
 	}
 	SeedNodeMap := map[common.PublicHash]string{}
@@ -176,13 +176,6 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	cs.SetMaxPhaseDiff(func(Height uint32) uint32 {
-		if Height > 12270472 {
-			return 2
-		} else {
-			return 0
-		}
-	})
 	app := app.NewFletaApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
