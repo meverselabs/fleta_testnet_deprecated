@@ -1,7 +1,7 @@
 package poa
 
 import (
-	"github.com/fletaio/fleta/service/p2p"
+	"github.com/fletaio/fleta_testnet/service/p2p"
 )
 
 func (an *AuthorityNode) broadcastStatus() error {

@@ -3,10 +3,10 @@ package p2p
 import (
 	"reflect"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 func init() {

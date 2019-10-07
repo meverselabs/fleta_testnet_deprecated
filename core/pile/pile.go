@@ -8,8 +8,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/common/util"
+	"github.com/fletaio/fleta_testnet/common/hash"
+	"github.com/fletaio/fleta_testnet/common/util"
 )
 
 // Pile proivdes a part of stack like store

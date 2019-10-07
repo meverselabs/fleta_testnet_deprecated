@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	toml "github.com/fletaio/fleta/cmd/config/go-toml"
+	toml "github.com/fletaio/fleta_testnet/cmd/config/go-toml"
 )
 
 func Example_tree() {

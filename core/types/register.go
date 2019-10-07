@@ -1,8 +1,8 @@
 package types
 
 import (
-	"github.com/fletaio/fleta/common/factory"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common/factory"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 // Register adds types of the process to the encoding factory

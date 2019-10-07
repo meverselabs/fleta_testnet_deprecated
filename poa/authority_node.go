@@ -6,16 +6,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/key"
-	"github.com/fletaio/fleta/common/queue"
-	"github.com/fletaio/fleta/common/rlog"
-	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/core/txpool"
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
-	"github.com/fletaio/fleta/service/p2p"
-	"github.com/fletaio/fleta/service/p2p/peer"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/key"
+	"github.com/fletaio/fleta_testnet/common/queue"
+	"github.com/fletaio/fleta_testnet/common/rlog"
+	"github.com/fletaio/fleta_testnet/core/chain"
+	"github.com/fletaio/fleta_testnet/core/txpool"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
+	"github.com/fletaio/fleta_testnet/service/p2p"
+	"github.com/fletaio/fleta_testnet/service/p2p/peer"
 )
 
 // AuthorityConfig defines configuration of the authority

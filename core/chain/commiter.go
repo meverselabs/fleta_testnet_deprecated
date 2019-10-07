@@ -1,6 +1,6 @@
 package chain
 
-import "github.com/fletaio/fleta/core/types"
+import "github.com/fletaio/fleta_testnet/core/types"
 
 // Committer enables to commit block with pre-executed context
 type Committer interface {

@@ -3,7 +3,7 @@ package poa
 import (
 	"bytes"
 
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 // DecodeConsensusData decodes header's consensus data

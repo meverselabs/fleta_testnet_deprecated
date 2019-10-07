@@ -3,8 +3,8 @@ package poa
 import (
 	"time"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/service/p2p"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/service/p2p"
 )
 
 func (fr *ClientNode) broadcastStatus() error {

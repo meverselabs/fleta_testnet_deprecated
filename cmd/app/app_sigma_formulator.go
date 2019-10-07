@@ -1,10 +1,10 @@
 package app
 
 import (
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/process/formulator"
-	"github.com/fletaio/fleta/process/vault"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/process/formulator"
+	"github.com/fletaio/fleta_testnet/process/vault"
 )
 
 func setupSigmaFormulator(sp *vault.Vault, ctw *types.ContextWrapper, sigmaPolicy *formulator.SigmaPolicy, alphaPolicy *formulator.AlphaPolicy) {

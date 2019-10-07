@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fletaio/fleta/common/util"
+	"github.com/fletaio/fleta_testnet/common/util"
 
 	lediscfg "github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/ledis"

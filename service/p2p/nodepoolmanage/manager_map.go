@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"time"
 
-	// "github.com/fletaio/fleta/service/p2p/storage"
+	// "github.com/fletaio/fleta_testnet/service/p2p/storage"
 	"os"
 	"path/filepath"
 	"sync"
 
-	"github.com/fletaio/fleta/core/backend/buntdb_driver/buntdb"
-	"github.com/fletaio/fleta/service/p2p/peermessage"
+	"github.com/fletaio/fleta_testnet/core/backend/buntdb_driver/buntdb"
+	"github.com/fletaio/fleta_testnet/service/p2p/peermessage"
 )
 
 //NodeStore is the structure of the connection information.

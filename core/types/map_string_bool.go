@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/encoding"
 	"github.com/petar/GoLLRB/llrb"
 )
 

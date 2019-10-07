@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/fletaio/fleta/common/util"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common/util"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 // ReadUint64 reads a uint64 number from the reader

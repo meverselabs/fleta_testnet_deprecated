@@ -23,7 +23,7 @@ import (
 	"crypto/elliptic"
 	"fmt"
 
-	"github.com/fletaio/fleta/common/crypto/ethereum/crypto/secp256k1"
+	"github.com/fletaio/fleta_testnet/common/crypto/ethereum/crypto/secp256k1"
 )
 
 // Ecrecover returns the uncompressed public key that created the given signature.

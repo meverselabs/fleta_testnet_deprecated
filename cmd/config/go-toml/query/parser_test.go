@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fletaio/fleta/cmd/config/go-toml"
+	"github.com/fletaio/fleta_testnet/cmd/config/go-toml"
 )
 
 type queryTestNode struct {

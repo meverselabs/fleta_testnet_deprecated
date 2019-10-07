@@ -1,9 +1,9 @@
 package payment
 
 import (
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/process/admin"
-	"github.com/fletaio/fleta/process/vault"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/process/admin"
+	"github.com/fletaio/fleta_testnet/process/vault"
 )
 
 // Payment manages balance of accounts of the chain

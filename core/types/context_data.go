@@ -5,10 +5,10 @@ import (
 	"encoding/hex"
 	"strconv"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/common/util"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
+	"github.com/fletaio/fleta_testnet/common/util"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 // ContextData is a state data of the context

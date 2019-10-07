@@ -1,7 +1,7 @@
 package gateway
 
 import (
-	"github.com/fletaio/fleta/common/hash"
+	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
 // tags

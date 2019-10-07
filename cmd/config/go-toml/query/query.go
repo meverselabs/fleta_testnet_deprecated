@@ -3,7 +3,7 @@ package query
 import (
 	"time"
 
-	"github.com/fletaio/fleta/cmd/config/go-toml"
+	"github.com/fletaio/fleta_testnet/cmd/config/go-toml"
 )
 
 // NodeFilterFn represents a user-defined filter function, for use with

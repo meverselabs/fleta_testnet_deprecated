@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/amount"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/amount"
 )
 
 // UnstakedEvent moves a ownership of utxos

@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common/queue"
-	"github.com/fletaio/fleta/common/util"
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common/queue"
+	"github.com/fletaio/fleta_testnet/common/util"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 // TCPPeer manages send and recv of the connection

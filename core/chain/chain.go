@@ -5,9 +5,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/core/types"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
+	"github.com/fletaio/fleta_testnet/core/types"
 )
 
 // Chain manages the chain data using processes

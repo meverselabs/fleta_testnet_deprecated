@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/amount"
-	"github.com/fletaio/fleta/core/types"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/amount"
+	"github.com/fletaio/fleta_testnet/core/types"
 )
 
 // Staking is used to stake coin to the hyper formulator

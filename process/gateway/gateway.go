@@ -1,10 +1,10 @@
 package gateway
 
 import (
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
-	"github.com/fletaio/fleta/process/admin"
-	"github.com/fletaio/fleta/process/vault"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
+	"github.com/fletaio/fleta_testnet/process/admin"
+	"github.com/fletaio/fleta_testnet/process/vault"
 )
 
 // Gateway manages balance of accounts of the chain

@@ -1,6 +1,6 @@
 package p2p
 
-import "github.com/fletaio/fleta/common/hash"
+import "github.com/fletaio/fleta_testnet/common/hash"
 
 // Status represents the status of the peer
 type Status struct {

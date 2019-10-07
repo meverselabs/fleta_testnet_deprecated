@@ -12,7 +12,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/fletaio/fleta/cmd/config/go-toml"
+	"github.com/fletaio/fleta_testnet/cmd/config/go-toml"
 )
 
 func main() {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/dgraph-io/badger"
 
-	"github.com/fletaio/fleta/core/backend"
+	"github.com/fletaio/fleta_testnet/core/backend"
 )
 
 func init() {

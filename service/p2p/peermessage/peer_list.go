@@ -2,7 +2,7 @@ package peermessage
 
 import (
 	"errors"
-	"github.com/fletaio/fleta/common/util"
+	"github.com/fletaio/fleta_testnet/common/util"
 	"io"
 	"time"
 )

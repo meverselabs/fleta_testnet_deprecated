@@ -3,7 +3,7 @@ package p2p
 import (
 	"time"
 
-	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta_testnet/common"
 )
 
 func (nd *Node) sendStatusTo(TargetPubHash common.PublicHash) error {

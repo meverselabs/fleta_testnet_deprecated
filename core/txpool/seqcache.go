@@ -1,6 +1,6 @@
 package txpool
 
-import "github.com/fletaio/fleta/common"
+import "github.com/fletaio/fleta_testnet/common"
 
 // SeqCache defines the function that acquire the last sequence of the address
 type SeqCache interface {

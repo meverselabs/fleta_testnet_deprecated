@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/fletaio/fleta/common/amount"
+	"github.com/fletaio/fleta_testnet/common/amount"
 )
 
 // RewardPolicy defines a reward policy

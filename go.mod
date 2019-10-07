@@ -1,4 +1,4 @@
-module github.com/fletaio/fleta
+module github.com/fletaio/fleta_testnet
 
 go 1.12
 

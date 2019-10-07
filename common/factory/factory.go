@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/fletaio/fleta/common/hash"
+	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
 // Factory provides type's factory

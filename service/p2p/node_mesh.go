@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/common/key"
-	"github.com/fletaio/fleta/common/rlog"
-	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/service/p2p/nodepoolmanage"
-	"github.com/fletaio/fleta/service/p2p/peer"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
+	"github.com/fletaio/fleta_testnet/common/key"
+	"github.com/fletaio/fleta_testnet/common/rlog"
+	"github.com/fletaio/fleta_testnet/core/chain"
+	"github.com/fletaio/fleta_testnet/service/p2p/nodepoolmanage"
+	"github.com/fletaio/fleta_testnet/service/p2p/peer"
 )
 
 // Handler is a interface for connection events

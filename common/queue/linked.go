@@ -1,7 +1,7 @@
 package queue
 
 import (
-	"github.com/fletaio/fleta/common/hash"
+	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
 // LinkedQueue is designed to allow users to remove the item by the key

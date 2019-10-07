@@ -1,8 +1,8 @@
 package types
 
 import (
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/hash"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
 // TransactionSign is the signature of the transaction creator

@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta_testnet/common"
 	"github.com/petar/GoLLRB/llrb"
 )
 
