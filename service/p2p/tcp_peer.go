@@ -145,12 +145,12 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 	} else if Len == 0 {
 		return nil, nil, ErrUnknownMessage
 	} else {
-		cps := make([]byte, 1)
-		if _, err := FillBytes(p.conn, cps); err != nil {
-			return nil, nil, err
-		}
 		zbs := make([]byte, Len)
 		if _, err := FillBytes(p.conn, zbs); err != nil {
+			return nil, nil, err
+		}
+		cps := make([]byte, 1)
+		if _, err := FillBytes(p.conn, cps); err != nil {
 			return nil, nil, err
 		}
 		var bs []byte
