@@ -82,18 +82,20 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 				var buffer bytes.Buffer
 				buffer.Write(bs[:2])
 				buffer.Write(make([]byte, 4))
-				if len(bs)-2 > 1000 {
+				if len(bs) > 1000 {
 					buffer.Write([]byte{1})
 					zw := gzip.NewWriter(&buffer)
 					zw.Write(bs[2:])
 					zw.Flush()
 					zw.Close()
-				} else {
+				} else if len(bs) > 2 {
 					buffer.Write([]byte{0})
 					buffer.Write(bs[2:])
+				} else {
+					buffer.Write([]byte{0})
 				}
 				wbs := buffer.Bytes()
-				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
+				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 					return
 				}
@@ -145,12 +147,12 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 	} else if Len == 0 {
 		return nil, nil, ErrUnknownMessage
 	} else {
-		zbs := make([]byte, Len)
-		if _, err := FillBytes(p.conn, zbs); err != nil {
-			return nil, nil, err
-		}
 		cps := make([]byte, 1)
 		if _, err := FillBytes(p.conn, cps); err != nil {
+			return nil, nil, err
+		}
+		zbs := make([]byte, Len)
+		if _, err := FillBytes(p.conn, zbs); err != nil {
 			return nil, nil, err
 		}
 		var bs []byte
