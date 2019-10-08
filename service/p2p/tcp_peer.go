@@ -66,7 +66,7 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 				if p.isClose {
 					return
 				}
-				v := p.writeQueue.Peek()
+				v := p.writeQueue.Pop()
 				if v == nil {
 					time.Sleep(50 * time.Millisecond)
 					continue
@@ -88,9 +88,8 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 				}
 				_, err := p.conn.Write(wbs)
 				if err != nil {
-					continue
+					return
 				}
-				p.writeQueue.Pop()
 			}
 		}
 	}()

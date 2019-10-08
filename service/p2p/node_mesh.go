@@ -11,6 +11,7 @@ import (
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/key"
+	"github.com/fletaio/fleta_testnet/common/queue"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/service/p2p/nodepoolmanage"
@@ -21,20 +22,23 @@ import (
 type Handler interface {
 	OnConnected(p peer.Peer)
 	OnDisconnected(p peer.Peer)
-	OnRecv(p peer.Peer, m interface{}) error
+	OnRecv(ID string, m interface{}) error
 }
 
 // NodeMesh is a mesh for networking between nodes
 type NodeMesh struct {
 	sync.Mutex
-	BindAddress     string
-	chainID         uint8
-	key             key.Key
-	handler         Handler
-	nodeSet         map[common.PublicHash]string
-	clientPeerMap   map[string]peer.Peer
-	serverPeerMap   map[string]peer.Peer
-	nodePoolManager nodepoolmanage.Manager
+	BindAddress       string
+	chainID           uint8
+	key               key.Key
+	handler           Handler
+	nodeSet           map[common.PublicHash]string
+	clientPeerMap     map[string]peer.Peer
+	serverPeerMap     map[string]peer.Peer
+	nodePoolManager   nodepoolmanage.Manager
+	blockMessageQueue *queue.Queue
+	txMessageQueue    *queue.Queue
+	peerMessageQueue  *queue.Queue
 }
 
 // NewNodeMesh returns a NodeMesh
@@ -87,6 +91,28 @@ func (ms *NodeMesh) Run(BindAddress string) {
 			}(PubHash, v)
 		}
 	}
+
+	go func() {
+		if ms.blockMessageQueue.Size() > 0 {
+			item := ms.blockMessageQueue.Pop().(*MessageQueueItem)
+			if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
+				ms.RemovePeer(item.Sender)
+			}
+		} else if ms.txMessageQueue.Size() > 0 {
+			item := ms.txMessageQueue.Pop().(*MessageQueueItem)
+			if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
+				ms.RemovePeer(item.Sender)
+			}
+		} else if ms.peerMessageQueue.Size() > 0 {
+			item := ms.peerMessageQueue.Pop().(*MessageQueueItem)
+			if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
+				ms.RemovePeer(item.Sender)
+			}
+		} else {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
 	if err := ms.server(BindAddress); err != nil {
 		panic(err)
 	}
@@ -407,8 +433,23 @@ func (ms *NodeMesh) handleConnection(p peer.Peer) error {
 		if err != nil {
 			return err
 		}
-		if err := ms.handler.OnRecv(p, m); err != nil {
-			return err
+		item := &MessageQueueItem{
+			Message: m,
+			Sender:  p.ID(),
+		}
+		switch m.(type) {
+		case *RequestMessage:
+			ms.blockMessageQueue.Push(item)
+		case *StatusMessage:
+			ms.blockMessageQueue.Push(item)
+		case *BlockMessage:
+			ms.blockMessageQueue.Push(item)
+		case *TransactionMessage:
+			ms.txMessageQueue.Push(item)
+		case *PeerListMessage:
+			ms.peerMessageQueue.Push(item)
+		case *RequestPeerListMessage:
+			ms.peerMessageQueue.Push(item)
 		}
 	}
 }
@@ -484,4 +525,9 @@ func (ms *NodeMesh) sendHandshake(conn net.Conn) (common.PublicHash, string, err
 	bindAddres := string(bs)
 
 	return pubhash, bindAddres, nil
+}
+
+type MessageQueueItem struct {
+	Message interface{}
+	Sender  string
 }

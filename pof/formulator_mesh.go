@@ -192,7 +192,7 @@ func (ms *FormulatorNodeMesh) handleConnection(p peer.Peer) error {
 		if err != nil {
 			return err
 		}
-		if err := ms.fr.onRecv(p, m); err != nil {
+		if err := ms.fr.handleMessage(p.ID(), m, 0); err != nil {
 			return err
 		}
 	}

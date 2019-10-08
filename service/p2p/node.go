@@ -213,9 +213,9 @@ func (nd *Node) OnDisconnected(p peer.Peer) {
 }
 
 // OnRecv called when message received
-func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
+func (nd *Node) OnRecv(ID string, m interface{}) error {
 	var SenderPublicHash common.PublicHash
-	copy(SenderPublicHash[:], []byte(p.ID()))
+	copy(SenderPublicHash[:], []byte(ID))
 
 	switch msg := m.(type) {
 	case *RequestMessage:
@@ -249,7 +249,7 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 		return nil
 	case *StatusMessage:
 		nd.statusLock.Lock()
-		if status, has := nd.statusMap[p.ID()]; has {
+		if status, has := nd.statusMap[ID]; has {
 			if status.Height < msg.Height {
 				status.Version = msg.Version
 				status.Height = msg.Height
@@ -288,8 +288,8 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 			}
 			if h != msg.LastHash {
 				//TODO : critical error signal
-				rlog.Println(chain.ErrFoundForkedBlock, p.Name(), h.String(), msg.LastHash.String(), msg.Height)
-				nd.ms.RemovePeer(p.ID())
+				rlog.Println(chain.ErrFoundForkedBlock, ID, h.String(), msg.LastHash.String(), msg.Height)
+				nd.ms.RemovePeer(ID)
 			}
 		}
 		return nil
@@ -298,7 +298,7 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 			if err := nd.addBlock(b); err != nil {
 				if err == chain.ErrFoundForkedBlock {
 					//TODO : critical error signal
-					nd.ms.RemovePeer(p.ID())
+					nd.ms.RemovePeer(ID)
 				}
 				return err
 			}
@@ -306,7 +306,7 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 
 		if len(msg.Blocks) > 0 {
 			nd.statusLock.Lock()
-			if status, has := nd.statusMap[p.ID()]; has {
+			if status, has := nd.statusMap[ID]; has {
 				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
 				if status.Height < lastHeight {
 					status.Height = lastHeight
@@ -320,7 +320,7 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 		idx := atomic.AddUint64(&nd.txMsgIdx, 1) % uint64(len(nd.txMsgChans))
 		(*nd.txMsgChans[idx]) <- &TxMsgItem{
 			Message: msg,
-			PeerID:  p.ID(),
+			PeerID:  ID,
 			ErrCh:   &errCh,
 		}
 		err := <-errCh
@@ -332,7 +332,7 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 		nd.ms.AddPeerList(msg.Ips, msg.Hashs)
 		return nil
 	case *RequestPeerListMessage:
-		nd.ms.SendPeerList(p.ID())
+		nd.ms.SendPeerList(ID)
 		return nil
 	default:
 		panic(ErrUnknownMessage) //TEMP

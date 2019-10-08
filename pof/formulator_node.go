@@ -336,9 +336,9 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 // OnRecv called when message received
-func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
+func (fr *FormulatorNode) OnRecv(ID string, m interface{}) error {
 	var SenderPublicHash common.PublicHash
-	copy(SenderPublicHash[:], []byte(p.ID()))
+	copy(SenderPublicHash[:], []byte(ID))
 
 	switch msg := m.(type) {
 	case *p2p.RequestMessage:
@@ -372,7 +372,7 @@ func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
 		}
 	case *p2p.StatusMessage:
 		fr.statusLock.Lock()
-		if status, has := fr.statusMap[p.ID()]; has {
+		if status, has := fr.statusMap[ID]; has {
 			if status.Height < msg.Height {
 				status.Version = msg.Version
 				status.Height = msg.Height
@@ -411,15 +411,15 @@ func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
 			}
 			if h != msg.LastHash {
 				//TODO : critical error signal
-				rlog.Println(p.Name(), h.String(), msg.LastHash.String(), msg.Height)
-				fr.nm.RemovePeer(p.ID())
+				rlog.Println(ID, h.String(), msg.LastHash.String(), msg.Height)
+				fr.nm.RemovePeer(ID)
 			}
 		}
 	case *p2p.BlockMessage:
 		for _, b := range msg.Blocks {
 			if err := fr.addBlock(b); err != nil {
 				if err == chain.ErrFoundForkedBlock {
-					fr.nm.RemovePeer(p.ID())
+					fr.nm.RemovePeer(ID)
 				}
 				return err
 			}
@@ -427,7 +427,7 @@ func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
 
 		if len(msg.Blocks) > 0 {
 			fr.statusLock.Lock()
-			if status, has := fr.statusMap[p.ID()]; has {
+			if status, has := fr.statusMap[ID]; has {
 				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
 				if status.Height < lastHeight {
 					status.Height = lastHeight
@@ -440,7 +440,7 @@ func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
 		idx := atomic.AddUint64(&fr.txMsgIdx, 1) % uint64(len(fr.txMsgChans))
 		(*fr.txMsgChans[idx]) <- &p2p.TxMsgItem{
 			Message: msg,
-			PeerID:  p.ID(),
+			PeerID:  ID,
 			ErrCh:   &errCh,
 		}
 		err := <-errCh
@@ -452,7 +452,7 @@ func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
 		fr.nm.AddPeerList(msg.Ips, msg.Hashs)
 		return nil
 	case *p2p.RequestPeerListMessage:
-		fr.nm.SendPeerList(p.ID())
+		fr.nm.SendPeerList(ID)
 		return nil
 	default:
 		panic(p2p.ErrUnknownMessage) //TEMP
@@ -514,15 +514,7 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	}
 }
 
-func (fr *FormulatorNode) onRecv(p peer.Peer, m interface{}) error {
-	if err := fr.handleMessage(p, m, 0); err != nil {
-		//rlog.Println(err)
-		return nil
-	}
-	return nil
-}
-
-func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount int) error {
+func (fr *FormulatorNode) handleMessage(ID string, m interface{}, RetryCount int) error {
 	cp := fr.cs.cn.Provider()
 
 	switch msg := m.(type) {
@@ -559,13 +551,13 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 					Height: Height + 1,
 					Count:  Count,
 				}
-				if err := p.Send(sm); err != nil {
+				if err := fr.ms.SendTo(ID, sm); err != nil {
 					return err
 				}
 			}
 			go func() {
 				time.Sleep(50 * time.Millisecond)
-				fr.handleMessage(p, m, RetryCount+1)
+				fr.handleMessage(ID, m, RetryCount+1)
 			}()
 			return nil
 		}
@@ -602,7 +594,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 			fr.genLock.Lock()
 			defer fr.genLock.Unlock()
 
-			return fr.genBlock(p, req)
+			return fr.genBlock(ID, req)
 		}(msg)
 		wg.Wait()
 		return nil
@@ -663,7 +655,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
 
 				fr.statusLock.Lock()
-				if status, has := fr.obStatusMap[p.ID()]; has {
+				if status, has := fr.obStatusMap[ID]; has {
 					if status.Height < GenMessage.Block.Header.Height {
 						status.Height = GenMessage.Block.Header.Height
 					}
@@ -705,7 +697,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 		sm := &p2p.BlockMessage{
 			Blocks: list,
 		}
-		if err := fr.ms.SendTo(p.ID(), sm); err != nil {
+		if err := fr.ms.SendTo(ID, sm); err != nil {
 			return err
 		}
 		return nil
@@ -721,7 +713,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 
 		if len(msg.Blocks) > 0 {
 			fr.statusLock.Lock()
-			if status, has := fr.obStatusMap[p.ID()]; has {
+			if status, has := fr.obStatusMap[ID]; has {
 				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
 				if status.Height < lastHeight {
 					status.Height = lastHeight
@@ -734,7 +726,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 		return nil
 	case *p2p.StatusMessage:
 		fr.statusLock.Lock()
-		if status, has := fr.obStatusMap[p.ID()]; has {
+		if status, has := fr.obStatusMap[ID]; has {
 			if status.Height < msg.Height {
 				status.Version = msg.Version
 				status.Height = msg.Height
@@ -750,10 +742,10 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 					sm := &p2p.RequestMessage{
 						Height: TargetHeight,
 					}
-					if err := p.Send(sm); err != nil {
+					if err := fr.ms.SendTo(ID, sm); err != nil {
 						return err
 					}
-					fr.requestTimer.Add(TargetHeight, 2*time.Second, p.ID())
+					fr.requestTimer.Add(TargetHeight, 2*time.Second, ID)
 				}
 			}
 			TargetHeight++
@@ -764,7 +756,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 		idx := atomic.AddUint64(&fr.txMsgIdx, 1) % uint64(len(fr.txMsgChans))
 		(*fr.txMsgChans[idx]) <- &p2p.TxMsgItem{
 			Message: msg,
-			PeerID:  p.ID(),
+			PeerID:  ID,
 			ErrCh:   &errCh,
 		}
 		err := <-errCh
@@ -834,7 +826,7 @@ func (fr *FormulatorNode) cleanPool(b *types.Block) {
 	}
 }
 
-func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
+func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
 
 	fr.lastGenMessages = []*BlockGenMessage{}
@@ -935,7 +927,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			nm.GeneratorSignature = sig
 		}
 
-		if err := p.Send(nm); err != nil {
+		if err := fr.ms.SendTo(ID, nm); err != nil {
 			return err
 		}
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", nm.Block.Header.Height, len(nm.Block.Transactions))
