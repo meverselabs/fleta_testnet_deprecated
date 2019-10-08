@@ -1051,16 +1051,12 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			brNext, has := ob.round.BlockRoundMap[NextHeight]
 			if has && Top.Address == ob.round.MinRoundVoteAck.Formulator {
 				PastTime := uint64(time.Now().UnixNano()) - ob.roundFirstTime
-				//ExpectedTime := uint64(msg.BlockVote.Header.Height-ob.roundFirstHeight) * uint64(500*time.Millisecond)
-				ExpectedTime := uint64(msg.BlockVote.Header.Height-ob.roundFirstHeight) * uint64(1000*time.Millisecond)
+				ExpectedTime := uint64(msg.BlockVote.Header.Height-ob.roundFirstHeight) * uint64(500*time.Millisecond)
 
 				if PastTime < ExpectedTime {
 					diff := time.Duration(ExpectedTime - PastTime)
-					// if diff > 500*time.Millisecond {
-					// 	diff = 500 * time.Millisecond
-					// }
-					if diff > 1000*time.Millisecond {
-						diff = 1000 * time.Millisecond
+					if diff > 500*time.Millisecond {
+						diff = 500 * time.Millisecond
 					}
 					time.Sleep(diff)
 				}

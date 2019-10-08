@@ -854,8 +854,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 	LastTimestamp := cp.LastTimestamp()
 	if StartBlockTime < LastTimestamp {
 		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
-		//} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(500*time.Millisecond) {
-	} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(1000*time.Millisecond) {
+	} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(500*time.Millisecond) {
 		bNoDelay = true
 	}
 
@@ -873,8 +872,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		if bNoDelay || Timestamp > Now+uint64(3*time.Second) {
 			Timestamp += uint64(i) * uint64(time.Millisecond)
 		} else {
-			//Timestamp += uint64(i) * uint64(500*time.Millisecond)
-			Timestamp += uint64(i) * uint64(1000*time.Millisecond)
+			Timestamp += uint64(i) * uint64(500*time.Millisecond)
 		}
 		if Timestamp <= ctx.LastTimestamp() {
 			Timestamp = ctx.LastTimestamp() + 1
@@ -947,11 +945,9 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		fr.lastGenHeight = ctx.TargetHeight()
 		fr.lastGenTime = time.Now().UnixNano()
 
-		//ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
-		ExpectedTime := time.Duration(i+1) * 1000 * time.Millisecond
+		ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
 		if i >= 7 {
-			//ExpectedTime = 3500*time.Millisecond + time.Duration(i-7+1)*200*time.Millisecond
-			ExpectedTime = 7000*time.Millisecond + time.Duration(i-7+1)*600*time.Millisecond
+			ExpectedTime = 3500*time.Millisecond + time.Duration(i-7+1)*200*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
 		if !bNoDelay && ExpectedTime > PastTime {
