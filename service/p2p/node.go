@@ -89,7 +89,7 @@ func (nd *Node) Close() {
 // OnItemExpired is called when the item is expired
 func (nd *Node) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	msg := Item.(*TransactionMessage)
-	nd.ms.ExceptCastLimit("", msg, 4)
+	nd.ms.ExceptCastLimit("", msg, 3)
 	if IsLast {
 		var TxHash hash.Hash256
 		copy(TxHash[:], []byte(Key))
@@ -137,7 +137,7 @@ func (nd *Node) Run(BindAddress string) {
 					//rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 
-					nd.ms.ExceptCastLimit(item.PeerID, item.Message, 4)
+					nd.ms.ExceptCastLimit(item.PeerID, item.Message, 3)
 				case <-(*pEndCh):
 					return
 				}
@@ -378,7 +378,7 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 		TxType: t,
 		Tx:     tx,
 		Sigs:   sigs,
-	}, 4)
+	}, 3)
 	return nil
 }
 

@@ -161,7 +161,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					//rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 
-					fr.nm.ExceptCastLimit(item.PeerID, item.Message, 4)
+					fr.nm.ExceptCastLimit(item.PeerID, item.Message, 3)
 				case <-(*pEndCh):
 					return
 				}
@@ -227,7 +227,7 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 		TxType: t,
 		Tx:     tx,
 		Sigs:   sigs,
-	}, 4)
+	}, 3)
 	return nil
 }
 
@@ -286,7 +286,7 @@ func (fr *FormulatorNode) OnTimerExpired(height uint32, value string) {
 // OnItemExpired is called when the item is expired
 func (fr *FormulatorNode) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	msg := Item.(*p2p.TransactionMessage)
-	fr.nm.ExceptCastLimit("", msg, 4)
+	fr.nm.ExceptCastLimit("", msg, 3)
 	if IsLast {
 		var TxHash hash.Hash256
 		copy(TxHash[:], []byte(Key))
@@ -854,7 +854,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 	LastTimestamp := cp.LastTimestamp()
 	if StartBlockTime < LastTimestamp {
 		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
-	} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(500*time.Millisecond) {
+		//} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(500*time.Millisecond) {
+	} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(1000*time.Millisecond) {
 		bNoDelay = true
 	}
 
@@ -872,7 +873,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		if bNoDelay || Timestamp > Now+uint64(3*time.Second) {
 			Timestamp += uint64(i) * uint64(time.Millisecond)
 		} else {
-			Timestamp += uint64(i) * uint64(500*time.Millisecond)
+			//Timestamp += uint64(i) * uint64(500*time.Millisecond)
+			Timestamp += uint64(i) * uint64(1000*time.Millisecond)
 		}
 		if Timestamp <= ctx.LastTimestamp() {
 			Timestamp = ctx.LastTimestamp() + 1
@@ -888,7 +890,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			return err
 		}
 
-		timer := time.NewTimer(200 * time.Millisecond)
+		//timer := time.NewTimer(200 * time.Millisecond)
+		timer := time.NewTimer(600 * time.Millisecond)
 
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
@@ -944,9 +947,11 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		fr.lastGenHeight = ctx.TargetHeight()
 		fr.lastGenTime = time.Now().UnixNano()
 
-		ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
+		//ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
+		ExpectedTime := time.Duration(i+1) * 1000 * time.Millisecond
 		if i >= 7 {
-			ExpectedTime = 3500*time.Millisecond + time.Duration(i-7+1)*200*time.Millisecond
+			//ExpectedTime = 3500*time.Millisecond + time.Duration(i-7+1)*200*time.Millisecond
+			ExpectedTime = 7000*time.Millisecond + time.Duration(i-7+1)*600*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
 		if !bNoDelay && ExpectedTime > PastTime {
