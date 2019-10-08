@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -199,17 +200,31 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 		}
 	}
 	for _, p := range ms.serverPeerMap {
-		if len(peerMap) >= Limit {
-			break
-		}
 		if p.ID() != ID {
 			peerMap[p.ID()] = p
 		}
 	}
 	ms.Unlock()
 
-	for _, p := range peerMap {
-		p.SendRaw(data)
+	ids := []string{}
+	for id := range peerMap {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	if len(ids) > 1 {
+		unit := len(ids) / (Limit - 1)
+
+		targetMap := map[string]bool{}
+		targetMap[ids[0]] = true
+		for i := 0; i < Limit-2; i++ {
+			targetMap[ids[unit*(i+1)]] = true
+		}
+		targetMap[ids[len(ids)-1]] = true
+
+		for id := range targetMap {
+			peerMap[id].SendRaw(data)
+		}
 	}
 	return nil
 }

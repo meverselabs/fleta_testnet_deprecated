@@ -14,7 +14,7 @@ require (
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/gorilla/websocket v1.4.0
 	github.com/labstack/echo v3.3.10+incompatible
-	github.com/labstack/gommon v0.2.9 // indirect
+	github.com/labstack/gommon v0.2.9
 	github.com/mr-tron/base58 v1.1.2
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99
 	github.com/pkg/errors v0.8.1

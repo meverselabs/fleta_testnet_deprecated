@@ -3,25 +3,28 @@ package main
 import (
 	"encoding/hex"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
-
-	"github.com/fletaio/fleta_testnet/core/types"
-
-	"github.com/fletaio/fleta_testnet/core/pile"
+	"time"
 
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
 	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
 	"github.com/fletaio/fleta_testnet/core/chain"
+	"github.com/fletaio/fleta_testnet/core/pile"
+	"github.com/fletaio/fleta_testnet/core/txpool"
+	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
 	"github.com/fletaio/fleta_testnet/process/formulator"
@@ -185,6 +188,8 @@ func main() {
 	cn.MustAddProcess(payment.NewPayment(5))
 	as := apiserver.NewAPIServer()
 	cn.MustAddService(as)
+	ws := NewWatcher()
+	cn.MustAddService(ws)
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
@@ -216,8 +221,170 @@ func main() {
 	cm.RemoveAll()
 	cm.Add("formulator", fr)
 
+	if true {
+		waitMap := map[common.Address]*chan struct{}{}
+
+		switch cfg.GenKeyHex {
+		case "f732e0551cc030f7946c70d03036214845a7eeb6b3d39266ddb04429c304fb85":
+			//Addrs = Addrs[:50]
+			Addrs = Addrs[:1]
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+		case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
+			//Addrs = Addrs[50:100]
+			Addrs = Addrs[50:51]
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+		case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
+			//Addrs = Addrs[100:150]
+			Addrs = Addrs[100:101]
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+		case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
+			//Addrs = Addrs[150:200]
+			Addrs = Addrs[150:151]
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+		default:
+			//Addrs = []common.Address{}
+			Addrs = Addrs[0:1]
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+		}
+
+		go func() {
+			for _, v := range Addrs {
+				go func(Addr common.Address) {
+					for {
+						time.Sleep(5 * time.Second)
+
+						Seq := st.Seq(Addr)
+						key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
+						log.Println(Addr.String(), "Start Transaction", Seq)
+
+						for i := 0; i < 10; i++ {
+							Seq++
+							tx := &vault.Transfer{
+								Timestamp_: uint64(time.Now().UnixNano()),
+								Seq_:       Seq,
+								From_:      Addr,
+								To:         Addr,
+								Amount:     amount.NewCoinAmount(1, 0),
+							}
+							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
+							if err != nil {
+								panic(err)
+							}
+							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
+								panic(err)
+							}
+							time.Sleep(100 * time.Millisecond)
+						}
+
+						pCh := waitMap[Addr]
+
+						if pCh == nil {
+							log.Println(Addr)
+						}
+
+						for range *pCh {
+							Seq++
+							log.Println(Addr.String(), "Execute Transaction", Seq)
+							tx := &vault.Transfer{
+								Timestamp_: uint64(time.Now().UnixNano()),
+								Seq_:       Seq,
+								From_:      Addr,
+								To:         Addr,
+								Amount:     amount.NewCoinAmount(1, 0),
+							}
+							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
+							if err != nil {
+								panic(err)
+							}
+							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
+								switch err {
+								case txpool.ErrExistTransaction:
+								case txpool.ErrTooFarSeq:
+									Seq--
+								}
+								time.Sleep(100 * time.Millisecond)
+								continue
+							}
+							time.Sleep(10 * time.Millisecond)
+						}
+					}
+				}(v)
+			}
+		}()
+	}
+
 	go fr.Run(":" + strconv.Itoa(cfg.Port))
 	go as.Run(":" + strconv.Itoa(cfg.APIPort))
 
 	cm.Wait()
+}
+
+// Watcher provides json rpc and web service for the chain
+type Watcher struct {
+	sync.Mutex
+	types.ServiceBase
+	waitMap map[common.Address]*chan struct{}
+}
+
+// NewWatcher returns a Watcher
+func NewWatcher() *Watcher {
+	s := &Watcher{
+		waitMap: map[common.Address]*chan struct{}{},
+	}
+	return s
+}
+
+// Name returns the name of the service
+func (s *Watcher) Name() string {
+	return "fleta.watcher"
+}
+
+// Init called when initialize service
+func (s *Watcher) Init(pm types.ProcessManager, cn types.Provider) error {
+	return nil
+}
+
+// OnLoadChain called when the chain loaded
+func (s *Watcher) OnLoadChain(loader types.Loader) error {
+	return nil
+}
+
+func (s *Watcher) addAddress(addr common.Address) *chan struct{} {
+	ch := make(chan struct{})
+	s.waitMap[addr] = &ch
+	return &ch
+}
+
+// OnBlockConnected called when a block is connected to the chain
+func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader types.Loader) {
+	for i, t := range b.Transactions {
+		res := b.TransactionResults[i]
+		if res == 1 {
+			if tx, is := t.(chain.AccountTransaction); is {
+
+				CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
+				switch tx.(type) {
+				case (*vault.IssueAccount):
+					log.Println("Created", CreatedAddr.String())
+				//case (*vault.Transfer):
+				//	log.Println("Transfered", tx.(*vault.Transfer).To)
+				default:
+					pCh, has := s.waitMap[tx.From()]
+					if has {
+						(*pCh) <- struct{}{}
+					}
+				}
+			}
+		}
+	}
 }
