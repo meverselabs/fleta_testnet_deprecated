@@ -221,43 +221,31 @@ func main() {
 	cm.RemoveAll()
 	cm.Add("formulator", fr)
 
-	if true {
-		waitMap := map[common.Address]*chan struct{}{}
-
-		switch cfg.GenKeyHex {
-		case "f732e0551cc030f7946c70d03036214845a7eeb6b3d39266ddb04429c304fb85":
-			//Addrs = Addrs[:50]
-			Addrs = Addrs[:1]
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
-		case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-			//Addrs = Addrs[50:100]
-			Addrs = Addrs[50:51]
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
-		case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-			//Addrs = Addrs[100:150]
-			Addrs = Addrs[100:101]
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
-		case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
-			//Addrs = Addrs[150:200]
-			Addrs = Addrs[150:151]
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
-		default:
-			//Addrs = []common.Address{}
-			Addrs = Addrs[0:1]
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
-		}
-
+	if false {
 		go func() {
+			switch cfg.GenKeyHex {
+			case "f732e0551cc030f7946c70d03036214845a7eeb6b3d39266ddb04429c304fb85":
+				Addrs = Addrs[:2500]
+				//Addrs = Addrs[:1]
+			case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
+				Addrs = Addrs[2500:5000]
+				//Addrs = Addrs[50:51]
+			case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
+				Addrs = Addrs[5000:7500]
+				//Addrs = Addrs[100:101]
+			case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
+				Addrs = Addrs[7500:10000]
+				//Addrs = Addrs[150:151]
+			default:
+				Addrs = []common.Address{}
+				//Addrs = Addrs[0:1]
+			}
+
+			waitMap := map[common.Address]*chan struct{}{}
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+
 			for _, v := range Addrs {
 				go func(Addr common.Address) {
 					for {
@@ -267,7 +255,7 @@ func main() {
 						key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
 						log.Println(Addr.String(), "Start Transaction", Seq)
 
-						for i := 0; i < 10; i++ {
+						for i := 0; i < 2; i++ {
 							Seq++
 							tx := &vault.Transfer{
 								Timestamp_: uint64(time.Now().UnixNano()),

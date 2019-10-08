@@ -418,12 +418,10 @@ func (ci *ClientNode) OnRecv(p peer.Peer, m interface{}) error {
 			PeerID:  p.ID(),
 			ErrCh:   &errCh,
 		}
-		/*
-			err := <-errCh
-			if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction {
-				return err
-			}
-		*/
+		err := <-errCh
+		if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+			return err
+		}
 		return nil
 	case *p2p.PeerListMessage:
 		ci.nm.AddPeerList(msg.Ips, msg.Hashs)

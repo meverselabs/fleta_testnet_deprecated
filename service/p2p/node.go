@@ -323,12 +323,10 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 			PeerID:  p.ID(),
 			ErrCh:   &errCh,
 		}
-		/*
-			err := <-errCh
-			if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction {
-				return err
-			}
-		*/
+		err := <-errCh
+		if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+			return err
+		}
 		return nil
 	case *PeerListMessage:
 		nd.ms.AddPeerList(msg.Ips, msg.Hashs)
