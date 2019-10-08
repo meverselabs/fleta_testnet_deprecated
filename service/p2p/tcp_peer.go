@@ -83,11 +83,13 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 				buffer.Write(bs[:2])
 				buffer.Write(make([]byte, 4))
 				if len(bs)-2 > 1000 {
+					buffer.Write([]byte{1})
 					zw := gzip.NewWriter(&buffer)
 					zw.Write(bs[2:])
 					zw.Flush()
 					zw.Close()
 				} else {
+					buffer.Write([]byte{0})
 					buffer.Write(bs[2:])
 				}
 				wbs := buffer.Bytes()
@@ -143,12 +145,16 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 	} else if Len == 0 {
 		return nil, nil, ErrUnknownMessage
 	} else {
+		cps := make([]byte, 1)
+		if _, err := FillBytes(p.conn, cps); err != nil {
+			return nil, nil, err
+		}
 		zbs := make([]byte, Len)
 		if _, err := FillBytes(p.conn, zbs); err != nil {
 			return nil, nil, err
 		}
 		var bs []byte
-		if Len > 1000 {
+		if cps[0] == 1 {
 			zr, err := gzip.NewReader(bytes.NewReader(zbs))
 			if err != nil {
 				return nil, nil, err
