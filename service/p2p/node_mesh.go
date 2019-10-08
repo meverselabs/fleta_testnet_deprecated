@@ -44,12 +44,15 @@ type NodeMesh struct {
 // NewNodeMesh returns a NodeMesh
 func NewNodeMesh(ChainID uint8, key key.Key, SeedNodeMap map[common.PublicHash]string, handler Handler, peerStorePath string) *NodeMesh {
 	ms := &NodeMesh{
-		chainID:       ChainID,
-		key:           key,
-		handler:       handler,
-		nodeSet:       map[common.PublicHash]string{},
-		clientPeerMap: map[string]peer.Peer{},
-		serverPeerMap: map[string]peer.Peer{},
+		chainID:           ChainID,
+		key:               key,
+		handler:           handler,
+		nodeSet:           map[common.PublicHash]string{},
+		clientPeerMap:     map[string]peer.Peer{},
+		serverPeerMap:     map[string]peer.Peer{},
+		blockMessageQueue: queue.NewQueue(),
+		txMessageQueue:    queue.NewQueue(),
+		peerMessageQueue:  queue.NewQueue(),
 	}
 	manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
 	if err != nil {
