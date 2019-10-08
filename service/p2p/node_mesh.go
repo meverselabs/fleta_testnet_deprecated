@@ -3,6 +3,7 @@ package p2p
 import (
 	crand "crypto/rand"
 	"encoding/binary"
+	"math/rand"
 	"net"
 	"sort"
 	"sync"
@@ -245,9 +246,6 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 	peerMap := map[string]peer.Peer{}
 	ms.Lock()
 	for _, p := range ms.clientPeerMap {
-		if len(peerMap) >= Limit {
-			break
-		}
 		if p.ID() != ID {
 			peerMap[p.ID()] = p
 		}
@@ -265,20 +263,33 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 	}
 	sort.Strings(ids)
 
-	if len(ids) > 1 {
-		unit := len(ids) / (Limit - 1)
-
+	if len(ids) > 0 {
 		targetMap := map[string]bool{}
-		targetMap[ids[0]] = true
-		for i := 0; i < Limit-2; i++ {
-			targetMap[ids[unit*(i+1)]] = true
+		for i := 0; i < 3; i++ {
+			idx := rand.Intn(len(ids))
+			targetMap[ids[idx]] = true
 		}
-		targetMap[ids[len(ids)-1]] = true
-
 		for id := range targetMap {
 			peerMap[id].SendRaw(data)
 		}
 	}
+
+	/*
+		if len(ids) > 1 {
+			unit := len(ids) / (Limit - 1)
+
+			targetMap := map[string]bool{}
+			targetMap[ids[0]] = true
+			for i := 0; i < Limit-2; i++ {
+				targetMap[ids[unit*(i+1)]] = true
+			}
+			targetMap[ids[len(ids)-1]] = true
+
+			for id := range targetMap {
+				peerMap[id].SendRaw(data)
+			}
+		}
+	*/
 	return nil
 }
 

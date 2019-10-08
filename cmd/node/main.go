@@ -265,7 +265,7 @@ func main() {
 
 						for range *pCh {
 							Seq++
-							log.Println(Addr.String(), "Execute Transaction", Seq)
+							//log.Println(Addr.String(), "Execute Transaction", Seq)
 							tx := &vault.Transfer{
 								Timestamp_: uint64(time.Now().UnixNano()),
 								Seq_:       Seq,

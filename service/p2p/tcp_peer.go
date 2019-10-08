@@ -2,7 +2,9 @@ package p2p
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
+	"io/ioutil"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -80,15 +82,14 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 				var buffer bytes.Buffer
 				buffer.Write(bs[:2])
 				buffer.Write(make([]byte, 4))
-				/*
-					if len(bs) > 2 {
-						zw := gzip.NewWriter(&buffer)
-						zw.Write(bs[2:])
-						zw.Flush()
-						zw.Close()
-					}
-				*/
-				buffer.Write(bs[2:])
+				if len(bs)-2 > 1000 {
+					zw := gzip.NewWriter(&buffer)
+					zw.Write(bs[2:])
+					zw.Flush()
+					zw.Close()
+				} else {
+					buffer.Write(bs[2:])
+				}
 				wbs := buffer.Bytes()
 				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
@@ -146,26 +147,28 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		if _, err := FillBytes(p.conn, zbs); err != nil {
 			return nil, nil, err
 		}
-		/*
+		var bs []byte
+		if Len > 1000 {
 			zr, err := gzip.NewReader(bytes.NewReader(zbs))
 			if err != nil {
 				return nil, nil, err
 			}
 			defer zr.Close()
-		*/
+
+			v, err := ioutil.ReadAll(zr)
+			if err != nil {
+				return nil, nil, err
+			}
+			bs = v
+		} else {
+			bs = zbs
+		}
 
 		fc := encoding.Factory("message")
 		m, err := fc.Create(t)
 		if err != nil {
 			return nil, nil, err
 		}
-		/*
-			bs, err := ioutil.ReadAll(zr)
-			if err != nil {
-				return nil, nil, err
-			}
-		*/
-		bs := zbs
 		if err := encoding.Unmarshal(bs, &m); err != nil {
 			return nil, nil, err
 		}
