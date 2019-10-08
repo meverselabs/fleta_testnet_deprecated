@@ -209,16 +209,16 @@ func main() {
 	if true {
 		switch cfg.NodeKeyHex {
 		case "44bc87d266348e96f68ecce817ad358bfae0a796653084bdf4a079c31d7381c7":
-			Addrs = Addrs[:5000]
+			Addrs = Addrs[:7500]
 			//Addrs = Addrs[:1]
 		case "686100bbbbb41fc5117864dffdb443216edac45a48caccc73d6710921225e4e3":
-			Addrs = Addrs[5000:10000]
+			Addrs = Addrs[7500:15000]
 			//Addrs = Addrs[50:51]
 		case "524fe44af5d2fafc8a223d7332ecf90f2eff4345286ce8cf5fd3b6591c65689a":
-			Addrs = Addrs[10000:15000]
+			Addrs = Addrs[15000:22500]
 			//Addrs = Addrs[100:101]
 		case "ede6200201d809b40f6f1b7c73598dad6d689b72f5779e3f2c608d9f1597c48f":
-			Addrs = Addrs[15000:20000]
+			Addrs = Addrs[22500:30000]
 			//Addrs = Addrs[150:151]
 		default:
 			Addrs = []common.Address{}
