@@ -96,23 +96,25 @@ func (ms *NodeMesh) Run(BindAddress string) {
 	}
 
 	go func() {
-		if ms.blockMessageQueue.Size() > 0 {
-			item := ms.blockMessageQueue.Pop().(*MessageQueueItem)
-			if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
-				ms.RemovePeer(item.Sender)
+		for {
+			if ms.blockMessageQueue.Size() > 0 {
+				item := ms.blockMessageQueue.Pop().(*MessageQueueItem)
+				if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
+					ms.RemovePeer(item.Sender)
+				}
+			} else if ms.txMessageQueue.Size() > 0 {
+				item := ms.txMessageQueue.Pop().(*MessageQueueItem)
+				if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
+					ms.RemovePeer(item.Sender)
+				}
+			} else if ms.peerMessageQueue.Size() > 0 {
+				item := ms.peerMessageQueue.Pop().(*MessageQueueItem)
+				if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
+					ms.RemovePeer(item.Sender)
+				}
+			} else {
+				time.Sleep(10 * time.Millisecond)
 			}
-		} else if ms.txMessageQueue.Size() > 0 {
-			item := ms.txMessageQueue.Pop().(*MessageQueueItem)
-			if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
-				ms.RemovePeer(item.Sender)
-			}
-		} else if ms.peerMessageQueue.Size() > 0 {
-			item := ms.peerMessageQueue.Pop().(*MessageQueueItem)
-			if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
-				ms.RemovePeer(item.Sender)
-			}
-		} else {
-			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
