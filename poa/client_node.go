@@ -125,7 +125,7 @@ func (ci *ClientNode) Run(BindAddress string) {
 				select {
 				case item := <-(*pMsgCh):
 					if err := ci.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-						rlog.Println("TransactionError", chain.HashTransactionByType(ci.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+						//rlog.Println("TransactionError", chain.HashTransactionByType(ci.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
 						if err != txpool.ErrPastSeq && err != txpool.ErrTooFarSeq {
 							(*item.ErrCh) <- err
 						} else {
@@ -133,7 +133,7 @@ func (ci *ClientNode) Run(BindAddress string) {
 						}
 						break
 					}
-					rlog.Println("TransactionAppended", chain.HashTransactionByType(ci.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
+					//rlog.Println("TransactionAppended", chain.HashTransactionByType(ci.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 
 					ci.ms.BroadcastMessage(item.Message)
@@ -418,10 +418,12 @@ func (ci *ClientNode) OnRecv(p peer.Peer, m interface{}) error {
 			PeerID:  p.ID(),
 			ErrCh:   &errCh,
 		}
-		err := <-errCh
-		if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction {
-			return err
-		}
+		/*
+			err := <-errCh
+			if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction {
+				return err
+			}
+		*/
 		return nil
 	case *p2p.PeerListMessage:
 		ci.nm.AddPeerList(msg.Ips, msg.Hashs)

@@ -116,7 +116,7 @@ func (an *AuthorityNode) Run(BindAddress string) {
 				select {
 				case item := <-(*pMsgCh):
 					if err := an.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-						rlog.Println("TransactionError", chain.HashTransactionByType(an.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+						//rlog.Println("TransactionError", chain.HashTransactionByType(an.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
 						if err != txpool.ErrPastSeq && err != txpool.ErrTooFarSeq {
 							(*item.ErrCh) <- err
 						} else {
@@ -124,7 +124,7 @@ func (an *AuthorityNode) Run(BindAddress string) {
 						}
 						break
 					}
-					rlog.Println("TransactionAppended", chain.HashTransactionByType(an.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
+					//rlog.Println("TransactionAppended", chain.HashTransactionByType(an.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 				case <-(*pEndCh):
 					return

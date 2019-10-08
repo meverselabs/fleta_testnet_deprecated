@@ -89,7 +89,7 @@ func (nd *Node) Close() {
 // OnItemExpired is called when the item is expired
 func (nd *Node) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	msg := Item.(*TransactionMessage)
-	nd.ms.ExceptCastLimit("", msg, 7)
+	nd.ms.ExceptCastLimit("", msg, 4)
 	if IsLast {
 		var TxHash hash.Hash256
 		copy(TxHash[:], []byte(Key))
@@ -126,7 +126,7 @@ func (nd *Node) Run(BindAddress string) {
 				select {
 				case item := <-(*pMsgCh):
 					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-						rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+						//rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
 						if err != txpool.ErrPastSeq && err != txpool.ErrTooFarSeq {
 							(*item.ErrCh) <- err
 						} else {
@@ -134,10 +134,10 @@ func (nd *Node) Run(BindAddress string) {
 						}
 						break
 					}
-					rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
+					//rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 
-					nd.ms.ExceptCastLimit(item.PeerID, item.Message, 7)
+					nd.ms.ExceptCastLimit(item.PeerID, item.Message, 4)
 				case <-(*pEndCh):
 					return
 				}
@@ -323,10 +323,12 @@ func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
 			PeerID:  p.ID(),
 			ErrCh:   &errCh,
 		}
-		err := <-errCh
-		if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction {
-			return err
-		}
+		/*
+			err := <-errCh
+			if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction {
+				return err
+			}
+		*/
 		return nil
 	case *PeerListMessage:
 		nd.ms.AddPeerList(msg.Ips, msg.Hashs)
@@ -378,7 +380,7 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 		TxType: t,
 		Tx:     tx,
 		Sigs:   sigs,
-	}, 7)
+	}, 4)
 	return nil
 }
 

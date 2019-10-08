@@ -9,11 +9,11 @@ RLogPath = ""
 UseRLog = false
 
 [ObserverKeyMap]
-4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ = "observer1.fletatest.net:47000"
-4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR = "observer2.fletatest.net:47000"
-37mZ3Gt3yW1TU3tt9zPF9hstUHedoXLsfXi8RTPp8Ze = "observer3.fletatest.net:47000"
-4c3FinyoBt1BNwv17tHc5gQKVSvu785rM7zq1R58hhL = "observer4.fletatest.net:47000"
-3BeyVF3kiCgYZRdPwC5D2C5xddrzmhB8kSaPzjSi59S = "observer5.fletatest.net:47000"
+4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ = "observer0.fletatest.net:47000"
+4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR = "observer1.fletatest.net:47000"
+37mZ3Gt3yW1TU3tt9zPF9hstUHedoXLsfXi8RTPp8Ze = "observer2.fletatest.net:47000"
+4c3FinyoBt1BNwv17tHc5gQKVSvu785rM7zq1R58hhL = "observer3.fletatest.net:47000"
+3BeyVF3kiCgYZRdPwC5D2C5xddrzmhB8kSaPzjSi59S = "observer4.fletatest.net:47000"
 
 [SeedNodeMap]
 3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf = "seednode1.fletatest.net:41000"

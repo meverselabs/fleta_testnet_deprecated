@@ -169,8 +169,6 @@ func (app *FletaApp) InitGenesis(ctw *types.ContextWrapper) error {
 	} else if fp, is := p.(*formulator.Formulator); !is {
 		return types.ErrNotExistProcess
 	} else {
-		setupStaking(fp, ctw)
-
 		HyperAddresses := []common.Address{
 			common.MustParseAddress("385ujsGNZt"),
 			common.MustParseAddress("9nvUvJibL"),
