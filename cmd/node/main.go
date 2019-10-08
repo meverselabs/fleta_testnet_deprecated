@@ -342,7 +342,6 @@ func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader 
 		res := b.TransactionResults[i]
 		if res == 1 {
 			if tx, is := t.(chain.AccountTransaction); is {
-
 				CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
 				switch tx.(type) {
 				case (*vault.IssueAccount):

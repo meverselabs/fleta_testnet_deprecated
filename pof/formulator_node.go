@@ -62,7 +62,7 @@ type FormulatorNode struct {
 // NewFormulatorNode returns a FormulatorNode
 func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, NetAddressMap map[common.PublicHash]string, SeedNodeMap map[common.PublicHash]string, cs *Consensus, peerStorePath string) *FormulatorNode {
 	if Config.MaxTransactionsPerBlock == 0 {
-		Config.MaxTransactionsPerBlock = 10000
+		Config.MaxTransactionsPerBlock = 5000
 	}
 	fr := &FormulatorNode{
 		Config:               Config,

@@ -243,7 +243,7 @@ func (nd *Node) OnRecv(ID string, m interface{}) error {
 		sm := &BlockMessage{
 			Blocks: list,
 		}
-		if err := nd.ms.SendTo(SenderPublicHash, sm); err != nil {
+		if err := nd.ms.SendToHigh(SenderPublicHash, sm); err != nil {
 			return err
 		}
 		return nil

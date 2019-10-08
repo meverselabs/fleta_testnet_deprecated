@@ -213,7 +213,7 @@ func main() {
 
 	fr := pof.NewFormulatorNode(&pof.FormulatorConfig{
 		Formulator:              common.MustParseAddress(cfg.Formulator),
-		MaxTransactionsPerBlock: 10000,
+		MaxTransactionsPerBlock: 5000,
 	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
 	if err := fr.Init(); err != nil {
 		panic(err)

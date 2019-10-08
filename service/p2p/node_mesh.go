@@ -213,6 +213,28 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
 	return nil
 }
 
+func (ms *NodeMesh) SendToHigh(pubhash common.PublicHash, m interface{}) error {
+	ID := string(pubhash[:])
+
+	ms.Lock()
+	var p peer.Peer
+	if cp, has := ms.clientPeerMap[ID]; has {
+		p = cp
+	} else if sp, has := ms.serverPeerMap[ID]; has {
+		p = sp
+	}
+	ms.Unlock()
+	if p == nil {
+		return ErrNotExistPeer
+	}
+
+	if err := p.(*TCPPeer).SendHigh(m); err != nil {
+		rlog.Println(err)
+		ms.RemovePeer(p.ID())
+	}
+	return nil
+}
+
 // ExceptCastLimit sends a message within the given number except the peer
 func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 	data, err := MessageToBytes(m)
@@ -296,6 +318,28 @@ func (ms *NodeMesh) BroadcastMessage(m interface{}) error {
 
 	for _, p := range peerMap {
 		p.SendRaw(data)
+	}
+	return nil
+}
+
+func (ms *NodeMesh) BroadcastMessageHigh(m interface{}) error {
+	data, err := MessageToBytes(m)
+	if err != nil {
+		return err
+	}
+
+	peerMap := map[string]peer.Peer{}
+	ms.Lock()
+	for _, p := range ms.clientPeerMap {
+		peerMap[p.ID()] = p
+	}
+	for _, p := range ms.serverPeerMap {
+		peerMap[p.ID()] = p
+	}
+	ms.Unlock()
+
+	for _, p := range peerMap {
+		p.(*TCPPeer).SendHighRaw(data)
 	}
 	return nil
 }

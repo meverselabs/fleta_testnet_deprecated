@@ -2,9 +2,7 @@ package p2p
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/binary"
-	"io/ioutil"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -19,15 +17,16 @@ import (
 // TCPPeer manages send and recv of the connection
 type TCPPeer struct {
 	sync.Mutex
-	conn          net.Conn
-	id            string
-	name          string
-	guessHeight   uint32
-	writeQueue    *queue.Queue
-	isClose       bool
-	connectedTime int64
-	pingCount     uint64
-	pingType      uint16
+	conn           net.Conn
+	id             string
+	name           string
+	guessHeight    uint32
+	writeQueue     *queue.Queue
+	writeHighQueue *queue.Queue
+	isClose        bool
+	connectedTime  int64
+	pingCount      uint64
+	pingType       uint16
 }
 
 // NewTCPPeer returns a TCPPeer
@@ -36,12 +35,13 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 		Name = ID
 	}
 	p := &TCPPeer{
-		conn:          conn,
-		id:            ID,
-		name:          Name,
-		writeQueue:    queue.NewQueue(),
-		connectedTime: connectedTime,
-		pingType:      types.DefineHashedType("p2p.PingMessage"),
+		conn:           conn,
+		id:             ID,
+		name:           Name,
+		writeQueue:     queue.NewQueue(),
+		writeHighQueue: queue.NewQueue(),
+		connectedTime:  connectedTime,
+		pingType:       types.DefineHashedType("p2p.PingMessage"),
 	}
 
 	go func() {
@@ -66,21 +66,29 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 				if p.isClose {
 					return
 				}
-				v := p.writeQueue.Pop()
-				if v == nil {
-					time.Sleep(50 * time.Millisecond)
+				var bs []byte
+				if p.writeHighQueue.Size() > 0 {
+					v := p.writeHighQueue.Pop()
+					bs = v.([]byte)
+				} else if p.writeQueue.Size() > 0 {
+					v := p.writeQueue.Pop()
+					bs = v.([]byte)
+				} else {
+					time.Sleep(10 * time.Millisecond)
 					continue
 				}
-				bs := v.([]byte)
 				var buffer bytes.Buffer
 				buffer.Write(bs[:2])
 				buffer.Write(make([]byte, 4))
-				if len(bs) > 2 {
-					zw := gzip.NewWriter(&buffer)
-					zw.Write(bs[2:])
-					zw.Flush()
-					zw.Close()
-				}
+				/*
+					if len(bs) > 2 {
+						zw := gzip.NewWriter(&buffer)
+						zw.Write(bs[2:])
+						zw.Flush()
+						zw.Close()
+					}
+				*/
+				buffer.Write(bs[2:])
 				wbs := buffer.Bytes()
 				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
@@ -138,21 +146,26 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		if _, err := FillBytes(p.conn, zbs); err != nil {
 			return nil, nil, err
 		}
-		zr, err := gzip.NewReader(bytes.NewReader(zbs))
-		if err != nil {
-			return nil, nil, err
-		}
-		defer zr.Close()
+		/*
+			zr, err := gzip.NewReader(bytes.NewReader(zbs))
+			if err != nil {
+				return nil, nil, err
+			}
+			defer zr.Close()
+		*/
 
 		fc := encoding.Factory("message")
 		m, err := fc.Create(t)
 		if err != nil {
 			return nil, nil, err
 		}
-		bs, err := ioutil.ReadAll(zr)
-		if err != nil {
-			return nil, nil, err
-		}
+		/*
+			bs, err := ioutil.ReadAll(zr)
+			if err != nil {
+				return nil, nil, err
+			}
+		*/
+		bs := zbs
 		if err := encoding.Unmarshal(bs, &m); err != nil {
 			return nil, nil, err
 		}
@@ -173,6 +186,19 @@ func (p *TCPPeer) Send(m interface{}) error {
 // SendRaw sends bytes to the TCPPeer
 func (p *TCPPeer) SendRaw(bs []byte) {
 	p.writeQueue.Push(bs)
+}
+
+func (p *TCPPeer) SendHigh(m interface{}) error {
+	data, err := MessageToBytes(m)
+	if err != nil {
+		return err
+	}
+	p.SendHighRaw(data)
+	return nil
+}
+
+func (p *TCPPeer) SendHighRaw(bs []byte) {
+	p.writeHighQueue.Push(bs)
 }
 
 // UpdateGuessHeight updates the guess height of the TCPPeer
