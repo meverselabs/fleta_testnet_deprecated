@@ -16,7 +16,7 @@ func (fr *FormulatorNode) broadcastStatus() error {
 		LastHash: lastHash,
 	}
 	fr.ms.BroadcastMessage(nm)
-	fr.nm.BroadcastMessage(nm)
+	fr.broadcastMessage(0, nm)
 	return nil
 }
 
@@ -41,7 +41,7 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 		Height: Height,
 		Count:  Count,
 	}
-	fr.nm.SendTo(TargetPubHash, nm)
+	fr.sendMessage(0, TargetPubHash, nm)
 	for i := uint32(0); i < uint32(Count); i++ {
 		fr.requestNodeTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
 	}

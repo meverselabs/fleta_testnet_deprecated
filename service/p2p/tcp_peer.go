@@ -52,6 +52,9 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 		pingCountLimit := uint64(3)
 		pingTicker := time.NewTicker(10 * time.Second)
 		for {
+			if p.isClose {
+				return
+			}
 			select {
 			case <-pingTicker.C:
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
@@ -62,45 +65,6 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 					return
 				}
 				if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
-					return
-				}
-			default:
-				if p.isClose {
-					return
-				}
-				var bs []byte
-				if p.writeHighQueue.Size() > 0 {
-					v := p.writeHighQueue.Pop()
-					bs = v.([]byte)
-				} else if p.writeQueue.Size() > 0 {
-					v := p.writeQueue.Pop()
-					bs = v.([]byte)
-				} else {
-					time.Sleep(10 * time.Millisecond)
-					continue
-				}
-				var buffer bytes.Buffer
-				buffer.Write(bs[:2])
-				buffer.Write(make([]byte, 4))
-				if len(bs) > 1000 {
-					buffer.Write([]byte{1})
-					zw := gzip.NewWriter(&buffer)
-					zw.Write(bs[2:])
-					zw.Flush()
-					zw.Close()
-				} else if len(bs) > 2 {
-					buffer.Write([]byte{0})
-					buffer.Write(bs[2:])
-				} else {
-					buffer.Write([]byte{0})
-				}
-				wbs := buffer.Bytes()
-				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
-				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-					return
-				}
-				_, err := p.conn.Write(wbs)
-				if err != nil {
 					return
 				}
 			}
@@ -190,26 +154,39 @@ func (p *TCPPeer) Send(m interface{}) error {
 	if err != nil {
 		return err
 	}
-	p.SendRaw(data)
+	if err := p.SendRaw(data); err != nil {
+		return err
+	}
 	return nil
 }
 
 // SendRaw sends bytes to the TCPPeer
-func (p *TCPPeer) SendRaw(bs []byte) {
-	p.writeQueue.Push(bs)
-}
-
-func (p *TCPPeer) SendHigh(m interface{}) error {
-	data, err := MessageToBytes(m)
+func (p *TCPPeer) SendRaw(bs []byte) error {
+	var buffer bytes.Buffer
+	buffer.Write(bs[:2])
+	buffer.Write(make([]byte, 4))
+	if len(bs) > 1000 {
+		buffer.Write([]byte{1})
+		zw := gzip.NewWriter(&buffer)
+		zw.Write(bs[2:])
+		zw.Flush()
+		zw.Close()
+	} else if len(bs) > 2 {
+		buffer.Write([]byte{0})
+		buffer.Write(bs[2:])
+	} else {
+		buffer.Write([]byte{0})
+	}
+	wbs := buffer.Bytes()
+	binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
+	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return err
+	}
+	_, err := p.conn.Write(wbs)
 	if err != nil {
 		return err
 	}
-	p.SendHighRaw(data)
 	return nil
-}
-
-func (p *TCPPeer) SendHighRaw(bs []byte) {
-	p.writeHighQueue.Push(bs)
 }
 
 // UpdateGuessHeight updates the guess height of the TCPPeer

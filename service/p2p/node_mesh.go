@@ -12,7 +12,6 @@ import (
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/key"
-	"github.com/fletaio/fleta_testnet/common/queue"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/service/p2p/nodepoolmanage"
@@ -29,31 +28,25 @@ type Handler interface {
 // NodeMesh is a mesh for networking between nodes
 type NodeMesh struct {
 	sync.Mutex
-	BindAddress       string
-	chainID           uint8
-	key               key.Key
-	handler           Handler
-	nodeSet           map[common.PublicHash]string
-	clientPeerMap     map[string]peer.Peer
-	serverPeerMap     map[string]peer.Peer
-	nodePoolManager   nodepoolmanage.Manager
-	blockMessageQueue *queue.Queue
-	txMessageQueue    *queue.Queue
-	peerMessageQueue  *queue.Queue
+	BindAddress     string
+	chainID         uint8
+	key             key.Key
+	handler         Handler
+	nodeSet         map[common.PublicHash]string
+	clientPeerMap   map[string]peer.Peer
+	serverPeerMap   map[string]peer.Peer
+	nodePoolManager nodepoolmanage.Manager
 }
 
 // NewNodeMesh returns a NodeMesh
 func NewNodeMesh(ChainID uint8, key key.Key, SeedNodeMap map[common.PublicHash]string, handler Handler, peerStorePath string) *NodeMesh {
 	ms := &NodeMesh{
-		chainID:           ChainID,
-		key:               key,
-		handler:           handler,
-		nodeSet:           map[common.PublicHash]string{},
-		clientPeerMap:     map[string]peer.Peer{},
-		serverPeerMap:     map[string]peer.Peer{},
-		blockMessageQueue: queue.NewQueue(),
-		txMessageQueue:    queue.NewQueue(),
-		peerMessageQueue:  queue.NewQueue(),
+		chainID:       ChainID,
+		key:           key,
+		handler:       handler,
+		nodeSet:       map[common.PublicHash]string{},
+		clientPeerMap: map[string]peer.Peer{},
+		serverPeerMap: map[string]peer.Peer{},
 	}
 	manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
 	if err != nil {
@@ -95,29 +88,6 @@ func (ms *NodeMesh) Run(BindAddress string) {
 			}(PubHash, v)
 		}
 	}
-
-	go func() {
-		for {
-			if ms.blockMessageQueue.Size() > 0 {
-				item := ms.blockMessageQueue.Pop().(*MessageQueueItem)
-				if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
-					ms.RemovePeer(item.Sender)
-				}
-			} else if ms.txMessageQueue.Size() > 0 {
-				item := ms.txMessageQueue.Pop().(*MessageQueueItem)
-				if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
-					ms.RemovePeer(item.Sender)
-				}
-			} else if ms.peerMessageQueue.Size() > 0 {
-				item := ms.peerMessageQueue.Pop().(*MessageQueueItem)
-				if err := ms.handler.OnRecv(item.Sender, item.Message); err != nil {
-					ms.RemovePeer(item.Sender)
-				}
-			} else {
-				time.Sleep(10 * time.Millisecond)
-			}
-		}
-	}()
 
 	if err := ms.server(BindAddress); err != nil {
 		panic(err)
@@ -208,28 +178,6 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
 	}
 
 	if err := p.Send(m); err != nil {
-		rlog.Println(err)
-		ms.RemovePeer(p.ID())
-	}
-	return nil
-}
-
-func (ms *NodeMesh) SendToHigh(pubhash common.PublicHash, m interface{}) error {
-	ID := string(pubhash[:])
-
-	ms.Lock()
-	var p peer.Peer
-	if cp, has := ms.clientPeerMap[ID]; has {
-		p = cp
-	} else if sp, has := ms.serverPeerMap[ID]; has {
-		p = sp
-	}
-	ms.Unlock()
-	if p == nil {
-		return ErrNotExistPeer
-	}
-
-	if err := p.(*TCPPeer).SendHigh(m); err != nil {
 		rlog.Println(err)
 		ms.RemovePeer(p.ID())
 	}
@@ -333,50 +281,8 @@ func (ms *NodeMesh) BroadcastMessage(m interface{}) error {
 	return nil
 }
 
-func (ms *NodeMesh) BroadcastMessageHigh(m interface{}) error {
-	data, err := MessageToBytes(m)
-	if err != nil {
-		return err
-	}
-
-	peerMap := map[string]peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.clientPeerMap {
-		peerMap[p.ID()] = p
-	}
-	for _, p := range ms.serverPeerMap {
-		peerMap[p.ID()] = p
-	}
-	ms.Unlock()
-
-	for _, p := range peerMap {
-		p.(*TCPPeer).SendHighRaw(data)
-	}
-	return nil
-}
-
 func (ms *NodeMesh) RequestConnect(Address string, TargetPubHash common.PublicHash) {
 	go ms.client(Address, TargetPubHash)
-}
-
-func (ms *NodeMesh) RequestPeerList(targetHash string) {
-	pm := &RequestPeerListMessage{}
-
-	var ph common.PublicHash
-	copy(ph[:], []byte(targetHash))
-	ms.SendTo(ph, pm)
-}
-
-func (ms *NodeMesh) SendPeerList(targetHash string) {
-	ips, hashs := ms.nodePoolManager.GetPeerList()
-	pm := &PeerListMessage{
-		Ips:   ips,
-		Hashs: hashs,
-	}
-
-	var ph common.PublicHash
-	copy(ph[:], []byte(targetHash))
-	ms.SendTo(ph, pm)
 }
 
 func (ms *NodeMesh) AddPeerList(ips []string, hashs []string) {
@@ -493,23 +399,8 @@ func (ms *NodeMesh) handleConnection(p peer.Peer) error {
 		if err != nil {
 			return err
 		}
-		item := &MessageQueueItem{
-			Message: m,
-			Sender:  p.ID(),
-		}
-		switch m.(type) {
-		case *RequestMessage:
-			ms.blockMessageQueue.Push(item)
-		case *StatusMessage:
-			ms.blockMessageQueue.Push(item)
-		case *BlockMessage:
-			ms.blockMessageQueue.Push(item)
-		case *TransactionMessage:
-			ms.txMessageQueue.Push(item)
-		case *PeerListMessage:
-			ms.peerMessageQueue.Push(item)
-		case *RequestPeerListMessage:
-			ms.peerMessageQueue.Push(item)
+		if err := ms.handler.OnRecv(p.ID(), m); err != nil {
+			return err
 		}
 	}
 }
@@ -587,7 +478,33 @@ func (ms *NodeMesh) sendHandshake(conn net.Conn) (common.PublicHash, string, err
 	return pubhash, bindAddres, nil
 }
 
-type MessageQueueItem struct {
+func (ms *NodeMesh) RequestPeerList(targetHash string) {
+	pm := &RequestPeerListMessage{}
+
+	var ph common.PublicHash
+	copy(ph[:], []byte(targetHash))
+	ms.SendTo(ph, pm)
+}
+
+func (ms *NodeMesh) SendPeerList(targetHash string) {
+	ips, hashs := ms.nodePoolManager.GetPeerList()
+	pm := &PeerListMessage{
+		Ips:   ips,
+		Hashs: hashs,
+	}
+
+	var ph common.PublicHash
+	copy(ph[:], []byte(targetHash))
+	ms.SendTo(ph, pm)
+}
+
+type RecvMessageItem struct {
+	PeerID  string
 	Message interface{}
-	Sender  string
+}
+
+type SendMessageItem struct {
+	Target  common.PublicHash
+	Message interface{}
+	Limit   int
 }

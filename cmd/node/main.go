@@ -206,7 +206,12 @@ func main() {
 	cm.RemoveAll()
 	cm.Add("node", nd)
 
-	if true {
+	if false {
+		waitMap := map[common.Address]*chan struct{}{}
+		for _, Addr := range Addrs {
+			waitMap[Addr] = ws.addAddress(Addr)
+		}
+
 		switch cfg.NodeKeyHex {
 		case "44bc87d266348e96f68ecce817ad358bfae0a796653084bdf4a079c31d7381c7":
 			Addrs = Addrs[:7500]
@@ -225,10 +230,6 @@ func main() {
 		}
 
 		go func() {
-			waitMap := map[common.Address]*chan struct{}{}
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
 			for _, v := range Addrs {
 				go func(Addr common.Address) {
 					for {
@@ -292,6 +293,31 @@ func main() {
 				}(v)
 			}
 		}()
+
+		go func() {
+			for {
+				b := <-ws.blockCh
+				for i, t := range b.Transactions {
+					res := b.TransactionResults[i]
+					if res == 1 {
+						if tx, is := t.(chain.AccountTransaction); is {
+							CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
+							switch tx.(type) {
+							case (*vault.IssueAccount):
+								log.Println("Created", CreatedAddr.String())
+							//case (*vault.Transfer):
+							//	log.Println("Transfered", tx.(*vault.Transfer).To)
+							default:
+								pCh, has := waitMap[tx.From()]
+								if has {
+									(*pCh) <- struct{}{}
+								}
+							}
+						}
+					}
+				}
+			}
+		}()
 	}
 
 	go nd.Run(":" + strconv.Itoa(cfg.Port))
@@ -305,12 +331,14 @@ type Watcher struct {
 	sync.Mutex
 	types.ServiceBase
 	waitMap map[common.Address]*chan struct{}
+	blockCh chan *types.Block
 }
 
 // NewWatcher returns a Watcher
 func NewWatcher() *Watcher {
 	s := &Watcher{
 		waitMap: map[common.Address]*chan struct{}{},
+		blockCh: make(chan *types.Block, 1000),
 	}
 	return s
 }
@@ -338,23 +366,5 @@ func (s *Watcher) addAddress(addr common.Address) *chan struct{} {
 
 // OnBlockConnected called when a block is connected to the chain
 func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader types.Loader) {
-	for i, t := range b.Transactions {
-		res := b.TransactionResults[i]
-		if res == 1 {
-			if tx, is := t.(chain.AccountTransaction); is {
-				CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
-				switch tx.(type) {
-				case (*vault.IssueAccount):
-					log.Println("Created", CreatedAddr.String())
-				//case (*vault.Transfer):
-				//	log.Println("Transfered", tx.(*vault.Transfer).To)
-				default:
-					pCh, has := s.waitMap[tx.From()]
-					if has {
-						(*pCh) <- struct{}{}
-					}
-				}
-			}
-		}
-	}
+	s.blockCh <- b
 }

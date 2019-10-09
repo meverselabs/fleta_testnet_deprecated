@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bytes"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,10 @@ type Node struct {
 	statusMap    map[string]*Status
 	txpool       *txpool.TransactionPool
 	txQ          *queue.ExpireQueue
+	recvQueues   []*queue.Queue
+	recvQCond    *sync.Cond
+	sendQueues   []*queue.Queue
+	sendQCond    *sync.Cond
 	isRunning    bool
 	closeLock    sync.RWMutex
 	isClose      bool
@@ -50,6 +55,16 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 		statusMap:    map[string]*Status{},
 		txpool:       txpool.NewTransactionPool(),
 		txQ:          queue.NewExpireQueue(),
+		recvQueues: []*queue.Queue{
+			queue.NewQueue(), //block
+			queue.NewQueue(), //tx
+			queue.NewQueue(), //peer
+		},
+		sendQueues: []*queue.Queue{
+			queue.NewQueue(), //block
+			queue.NewQueue(), //tx
+			queue.NewQueue(), //peer
+		},
 	}
 	nd.ms = NewNodeMesh(cn.Provider().ChainID(), key, SeedNodeMap, nd, peerStorePath)
 	nd.requestTimer = NewRequestTimer(nd)
@@ -89,7 +104,7 @@ func (nd *Node) Close() {
 // OnItemExpired is called when the item is expired
 func (nd *Node) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	msg := Item.(*TransactionMessage)
-	nd.ms.ExceptCastLimit("", msg, 3)
+	nd.limitCastMessage(1, msg)
 	if IsLast {
 		var TxHash hash.Hash256
 		copy(TxHash[:], []byte(Key))
@@ -127,23 +142,89 @@ func (nd *Node) Run(BindAddress string) {
 				case item := <-(*pMsgCh):
 					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
 						//rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
-						if err != txpool.ErrPastSeq && err != txpool.ErrTooFarSeq {
-							(*item.ErrCh) <- err
-						} else {
-							(*item.ErrCh) <- nil
-						}
+						(*item.ErrCh) <- err
 						break
 					}
 					//rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 
-					nd.ms.ExceptCastLimit(item.PeerID, item.Message, 3)
+					var SenderPublicHash common.PublicHash
+					copy(SenderPublicHash[:], []byte(item.PeerID))
+					nd.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
 				case <-(*pEndCh):
 					return
 				}
 			}
 		}(&mch, &ch)
 	}
+
+	go func() {
+		for !nd.isClose {
+			hasMessage := false
+			for {
+				for _, q := range nd.recvQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*RecvMessageItem)
+					if err := nd.handlePeerMessage(item.PeerID, item.Message); err != nil {
+						nd.ms.RemovePeer(item.PeerID)
+					}
+					break
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for !nd.isClose {
+			hasMessage := false
+			for {
+				for _, q := range nd.sendQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*SendMessageItem)
+					//log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+					var EmptyHash common.PublicHash
+					if bytes.Equal(item.Target[:], EmptyHash[:]) {
+						if item.Limit > 0 {
+							if err := nd.ms.ExceptCastLimit("", item.Message, item.Limit); err != nil {
+								nd.ms.RemovePeer(string(item.Target[:]))
+							}
+						} else {
+							if err := nd.ms.BroadcastMessage(item.Message); err != nil {
+								nd.ms.RemovePeer(string(item.Target[:]))
+							}
+						}
+					} else {
+						if item.Limit > 0 {
+							if err := nd.ms.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
+								nd.ms.RemovePeer(string(item.Target[:]))
+							}
+						} else {
+							if err := nd.ms.SendTo(item.Target, item.Message); err != nil {
+								nd.ms.RemovePeer(string(item.Target[:]))
+							}
+						}
+					}
+					break
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
 
 	blockTimer := time.NewTimer(time.Millisecond)
 	blockRequestTimer := time.NewTimer(time.Millisecond)
@@ -214,6 +295,56 @@ func (nd *Node) OnDisconnected(p peer.Peer) {
 
 // OnRecv called when message received
 func (nd *Node) OnRecv(ID string, m interface{}) error {
+	item := &RecvMessageItem{
+		PeerID:  ID,
+		Message: m,
+	}
+	switch m.(type) {
+	case *RequestMessage:
+		nd.recvQueues[0].Push(item)
+	case *StatusMessage:
+		nd.recvQueues[0].Push(item)
+	case *BlockMessage:
+		nd.recvQueues[0].Push(item)
+	case *TransactionMessage:
+		nd.recvQueues[1].Push(item)
+	case *PeerListMessage:
+		nd.recvQueues[2].Push(item)
+	case *RequestPeerListMessage:
+		nd.recvQueues[2].Push(item)
+	}
+	return nil
+}
+
+func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{}) {
+	nd.sendQueues[Priority].Push(&SendMessageItem{
+		Target:  Target,
+		Message: m,
+	})
+}
+
+func (nd *Node) broadcastMessage(Priority int, m interface{}) {
+	nd.sendQueues[Priority].Push(&SendMessageItem{
+		Message: m,
+	})
+}
+
+func (nd *Node) limitCastMessage(Priority int, m interface{}) {
+	nd.sendQueues[Priority].Push(&SendMessageItem{
+		Message: m,
+		Limit:   3,
+	})
+}
+
+func (nd *Node) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
+	nd.sendQueues[Priority].Push(&SendMessageItem{
+		Target:  Target,
+		Message: m,
+		Limit:   3,
+	})
+}
+
+func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 	var SenderPublicHash common.PublicHash
 	copy(SenderPublicHash[:], []byte(ID))
 
@@ -243,9 +374,7 @@ func (nd *Node) OnRecv(ID string, m interface{}) error {
 		sm := &BlockMessage{
 			Blocks: list,
 		}
-		if err := nd.ms.SendToHigh(SenderPublicHash, sm); err != nil {
-			return err
-		}
+		nd.sendMessage(0, SenderPublicHash, sm)
 		return nil
 	case *StatusMessage:
 		nd.statusLock.Lock()
@@ -332,7 +461,11 @@ func (nd *Node) OnRecv(ID string, m interface{}) error {
 		nd.ms.AddPeerList(msg.Ips, msg.Hashs)
 		return nil
 	case *RequestPeerListMessage:
-		nd.ms.SendPeerList(ID)
+		ips, hashs := nd.ms.nodePoolManager.GetPeerList()
+		nd.sendMessage(2, SenderPublicHash, &PeerListMessage{
+			Ips:   ips,
+			Hashs: hashs,
+		})
 		return nil
 	default:
 		panic(ErrUnknownMessage) //TEMP
@@ -374,11 +507,11 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 	if err := nd.addTx(t, tx, sigs); err != nil {
 		return err
 	}
-	nd.ms.ExceptCastLimit("", &TransactionMessage{
+	nd.limitCastMessage(1, &TransactionMessage{
 		TxType: t,
 		Tx:     tx,
 		Sigs:   sigs,
-	}, 3)
+	})
 	return nil
 }
 

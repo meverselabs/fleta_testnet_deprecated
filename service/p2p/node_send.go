@@ -18,7 +18,7 @@ func (nd *Node) sendStatusTo(TargetPubHash common.PublicHash) error {
 		Height:   height,
 		LastHash: lastHash,
 	}
-	nd.ms.SendToHigh(TargetPubHash, nm)
+	nd.sendMessage(0, TargetPubHash, nm)
 	return nil
 }
 
@@ -30,7 +30,7 @@ func (nd *Node) broadcastStatus() error {
 		Height:   height,
 		LastHash: lastHash,
 	}
-	nd.ms.BroadcastMessageHigh(nm)
+	nd.broadcastMessage(0, nm)
 	return nil
 }
 
@@ -43,7 +43,7 @@ func (nd *Node) sendRequestBlockTo(TargetPubHash common.PublicHash, Height uint3
 		Height: Height,
 		Count:  Count,
 	}
-	nd.ms.SendToHigh(TargetPubHash, nm)
+	nd.sendMessage(0, TargetPubHash, nm)
 	for i := uint32(0); i < uint32(Count); i++ {
 		nd.requestTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
 	}
