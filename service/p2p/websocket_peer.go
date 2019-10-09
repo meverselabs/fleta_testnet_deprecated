@@ -3,7 +3,6 @@ package p2p
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/binary"
 	"io/ioutil"
 	"sync"
 	"sync/atomic"
@@ -73,7 +72,6 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 					if err != nil {
 						return
 					}
-					binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
 					if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 						return
 					}
