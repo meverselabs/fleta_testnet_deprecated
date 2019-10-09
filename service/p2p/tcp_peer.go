@@ -85,9 +85,11 @@ func (p *TCPPeer) Close() {
 
 // ReadMessageData returns a message data
 func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
+	r := NewCopyReader(p.conn)
+
 	var t uint16
 	for {
-		if v, _, err := ReadUint16(p.conn); err != nil {
+		if v, _, err := ReadUint16(r); err != nil {
 			return nil, nil, err
 		} else {
 			atomic.StoreUint64(&p.pingCount, 0)
@@ -100,15 +102,15 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		}
 	}
 
-	if cp, _, err := ReadUint8(p.conn); err != nil {
+	if cp, _, err := ReadUint8(r); err != nil {
 		return nil, nil, err
-	} else if Len, _, err := ReadUint32(p.conn); err != nil {
+	} else if Len, _, err := ReadUint32(r); err != nil {
 		return nil, nil, err
 	} else if Len == 0 {
 		return nil, nil, ErrUnknownMessage
 	} else {
 		zbs := make([]byte, Len)
-		if _, err := FillBytes(p.conn, zbs); err != nil {
+		if _, err := FillBytes(r, zbs); err != nil {
 			return nil, nil, err
 		}
 		var bs []byte
@@ -136,7 +138,7 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		if err := encoding.Unmarshal(bs, &m); err != nil {
 			return nil, nil, err
 		}
-		return m, bs, nil
+		return m, r.Bytes(), nil
 	}
 }
 

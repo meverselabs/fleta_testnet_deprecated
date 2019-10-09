@@ -20,7 +20,7 @@ func (fr *FormulatorNode) broadcastStatus() error {
 	return nil
 }
 
-func (fr *FormulatorNode) sendRequestBlockTo(TargetID string, Height uint32, Count uint8) error {
+func (fr *FormulatorNode) sendRequestBlockTo(TargetID string, Height uint32) error {
 	nm := &p2p.RequestMessage{
 		Height: Height,
 	}
@@ -29,7 +29,7 @@ func (fr *FormulatorNode) sendRequestBlockTo(TargetID string, Height uint32, Cou
 	return nil
 }
 
-func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash, Height uint32, Count uint8) error {
+func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash, Height uint32) error {
 	if TargetPubHash == fr.myPublicHash {
 		return nil
 	}

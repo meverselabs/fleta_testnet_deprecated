@@ -184,7 +184,7 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
 	return nil
 }
 
-// SendRawTo sends a message to the node
+// SendRawTo sends a packet to the node
 func (ms *NodeMesh) SendRawTo(pubhash common.PublicHash, bs []byte) error {
 	ID := string(pubhash[:])
 
@@ -262,23 +262,6 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 		}
 	*/
 	return nil
-}
-
-// BroadcastRaw sends a message to all peers
-func (ms *NodeMesh) BroadcastRaw(bs []byte) {
-	peerMap := map[string]peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.clientPeerMap {
-		peerMap[p.ID()] = p
-	}
-	for _, p := range ms.serverPeerMap {
-		peerMap[p.ID()] = p
-	}
-	ms.Unlock()
-
-	for _, p := range peerMap {
-		p.SendRaw(bs)
-	}
 }
 
 // BroadcastMessage sends a message to all peers

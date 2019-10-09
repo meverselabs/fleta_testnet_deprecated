@@ -1,7 +1,6 @@
 package pof
 
 import (
-	"bytes"
 	"sort"
 	"sync"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/common/queue"
 	"github.com/fletaio/fleta_testnet/common/rlog"
-	"github.com/fletaio/fleta_testnet/common/util"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
@@ -718,13 +716,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 
 		if ob.round.MinRoundVoteAck != nil {
 			if ob.round.MinRoundVoteAck.PublicHash == ob.myPublicHash && len(raw) > 0 {
-				var buffer bytes.Buffer
-				buffer.Write(util.Uint16ToBytes(types.DefineHashedType("pof.BlockGenMessage")))
-				buffer.Write(raw)
 				if debug.DEBUG {
 					rlog.Println(cp.Height(), "BroadcastRaw", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 				}
-				ob.ms.BroadcastRaw(buffer.Bytes())
+				ob.ms.BroadcastRaw(raw)
 			}
 		}
 

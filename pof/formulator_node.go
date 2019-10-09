@@ -226,26 +226,32 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*p2p.SendMessageItem)
-					var EmptyHash common.PublicHash
 					//log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
-					if bytes.Equal(item.Target[:], EmptyHash[:]) {
-						if item.Limit > 0 {
-							if err := fr.nm.ExceptCastLimit("", item.Message, item.Limit); err != nil {
-								fr.nm.RemovePeer(string(item.Target[:]))
-							}
-						} else {
-							if err := fr.nm.BroadcastMessage(item.Message); err != nil {
-								fr.nm.RemovePeer(string(item.Target[:]))
-							}
+					if len(item.Packet) > 0 {
+						if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
+							fr.nm.RemovePeer(string(item.Target[:]))
 						}
 					} else {
-						if item.Limit > 0 {
-							if err := fr.nm.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
-								fr.nm.RemovePeer(string(item.Target[:]))
+						var EmptyHash common.PublicHash
+						if bytes.Equal(item.Target[:], EmptyHash[:]) {
+							if item.Limit > 0 {
+								if err := fr.nm.ExceptCastLimit("", item.Message, item.Limit); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
+							} else {
+								if err := fr.nm.BroadcastMessage(item.Message); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
 							}
 						} else {
-							if err := fr.nm.SendTo(item.Target, item.Message); err != nil {
-								fr.nm.RemovePeer(string(item.Target[:]))
+							if item.Limit > 0 {
+								if err := fr.nm.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
+							} else {
+								if err := fr.nm.SendTo(item.Target, item.Message); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
 							}
 						}
 					}
@@ -504,19 +510,9 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 				if BaseHeight > msg.Height {
 					break
 				}
-				enableCount := 0
 				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
 					if !fr.requestNodeTimer.Exist(i) {
-						enableCount++
-					}
-				}
-				if enableCount == 10 {
-					fr.sendRequestBlockToNode(SenderPublicHash, BaseHeight+1, 10)
-				} else if enableCount > 0 {
-					for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
-						if !fr.requestNodeTimer.Exist(i) {
-							fr.sendRequestBlockToNode(SenderPublicHash, i, 1)
-						}
+						fr.sendRequestBlockToNode(SenderPublicHash, i)
 					}
 				}
 			}
@@ -605,22 +601,11 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 		if len(selectedPubHash) == 0 {
 			break
 		}
-		enableCount := 0
-		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
-			if !fr.requestNodeTimer.Exist(i) {
-				enableCount++
-			}
-		}
-
 		var TargetPublicHash common.PublicHash
 		copy(TargetPublicHash[:], []byte(selectedPubHash))
-		if enableCount == 10 {
-			fr.sendRequestBlockToNode(TargetPublicHash, BaseHeight+1, 10)
-		} else if enableCount > 0 {
-			for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
-				if !fr.requestNodeTimer.Exist(i) {
-					fr.sendRequestBlockToNode(TargetPublicHash, i, 1)
-				}
+		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
+			if !fr.requestNodeTimer.Exist(i) {
+				fr.sendRequestBlockToNode(TargetPublicHash, i)
 			}
 		}
 	}
@@ -889,7 +874,7 @@ func (fr *FormulatorNode) tryRequestNext() {
 			fr.statusLock.Unlock()
 
 			if len(TargetPubHash) > 0 {
-				fr.sendRequestBlockTo(TargetPubHash, TargetHeight, 1)
+				fr.sendRequestBlockTo(TargetPubHash, TargetHeight)
 			}
 		}
 	}

@@ -142,7 +142,7 @@ func (p *WebsocketPeer) ReadMessageData() (interface{}, []byte, error) {
 		if err := encoding.Unmarshal(bs, &m); err != nil {
 			return nil, nil, err
 		}
-		return m, bs, nil
+		return m, rb, nil
 	}
 }
 

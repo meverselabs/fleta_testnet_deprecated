@@ -141,7 +141,7 @@ func (ms *ObserverNodeMesh) SendTo(pubhash common.PublicHash, m interface{}) err
 	return nil
 }
 
-// SendTo sends a message to the observer
+// SendRawTo sends a packet to the observer
 func (ms *ObserverNodeMesh) SendRawTo(pubhash common.PublicHash, bs []byte) error {
 	ID := string(pubhash[:])
 

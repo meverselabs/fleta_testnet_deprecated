@@ -97,20 +97,6 @@ func (ms *FormulatorNodeMesh) SendTo(ID string, m interface{}) error {
 	return nil
 }
 
-// BroadcastRaw sends a message to all peers
-func (ms *FormulatorNodeMesh) BroadcastRaw(bs []byte) {
-	peerMap := map[string]peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.peerMap {
-		peerMap[p.ID()] = p
-	}
-	ms.Unlock()
-
-	for _, p := range peerMap {
-		p.SendRaw(bs)
-	}
-}
-
 // BroadcastMessage sends a message to all peers
 func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) error {
 	data, err := p2p.MessageToPacket(m)
