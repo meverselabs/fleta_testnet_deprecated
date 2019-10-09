@@ -202,7 +202,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
@@ -246,7 +246,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
