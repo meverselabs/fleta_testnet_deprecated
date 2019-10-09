@@ -440,7 +440,9 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 				}
 				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
 					if !nd.requestTimer.Exist(i) {
-						nd.sendRequestBlockTo(SenderPublicHash, i)
+						if nd.blockQ.Find(uint64(i)) == nil {
+							nd.sendRequestBlockTo(SenderPublicHash, i)
+						}
 					}
 				}
 			}
@@ -627,7 +629,9 @@ func (nd *Node) tryRequestBlocks() {
 		copy(TargetPublicHash[:], []byte(selectedPubHash))
 		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
 			if !nd.requestTimer.Exist(i) {
-				nd.sendRequestBlockTo(TargetPublicHash, i)
+				if nd.blockQ.Find(uint64(i)) == nil {
+					nd.sendRequestBlockTo(TargetPublicHash, i)
+				}
 			}
 		}
 	}

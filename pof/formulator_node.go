@@ -238,7 +238,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*p2p.SendMessageItem)
 					if len(item.Packet) > 0 {
-						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage")
+						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
 						if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
 							fr.nm.RemovePeer(string(item.Target[:]))
 						}
@@ -535,7 +535,9 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 				}
 				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
 					if !fr.requestNodeTimer.Exist(i) {
-						fr.sendRequestBlockToNode(SenderPublicHash, i)
+						if fr.blockQ.Find(uint64(i)) == nil {
+							fr.sendRequestBlockToNode(SenderPublicHash, i)
+						}
 					}
 				}
 			}
@@ -553,7 +555,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 	case *p2p.BlockMessage:
 		if err := fr.addBlock(msg.Block); err != nil {
 			if err == chain.ErrFoundForkedBlock {
-				fr.nm.RemovePeer(ID)
+				panic(err)
 			}
 			return err
 		}
@@ -628,7 +630,9 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 		copy(TargetPublicHash[:], []byte(selectedPubHash))
 		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
 			if !fr.requestNodeTimer.Exist(i) {
-				fr.sendRequestBlockToNode(TargetPublicHash, i)
+				if fr.blockQ.Find(uint64(i)) == nil {
+					fr.sendRequestBlockToNode(TargetPublicHash, i)
+				}
 			}
 		}
 	}

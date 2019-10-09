@@ -1107,7 +1107,9 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				}
 				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
 					if !ob.requestTimer.Exist(i) {
-						ob.sendRequestBlockTo(SenderPublicHash, i)
+						if ob.blockQ.Find(uint64(i)) == nil {
+							ob.sendRequestBlockTo(SenderPublicHash, i)
+						}
 					}
 				}
 			}
