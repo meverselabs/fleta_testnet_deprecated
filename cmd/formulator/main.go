@@ -269,7 +269,7 @@ func main() {
 								panic(err)
 							}
 							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
-								panic(err)
+								//panic(err)
 							}
 							time.Sleep(100 * time.Millisecond)
 						}

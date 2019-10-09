@@ -307,7 +307,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
 				TargetHeight++
 				Count++
-				if Count > 100 {
+				if Count > 10 {
 					break
 				}
 				item = fr.blockQ.PopUntil(TargetHeight)

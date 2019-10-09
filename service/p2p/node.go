@@ -283,7 +283,7 @@ func (nd *Node) Run(BindAddress string) {
 				rlog.Println("Node", nd.myPublicHash.String(), nd.cn.Provider().Height(), "BlockConnected", b.Header.Generator.String(), b.Header.Height)
 				TargetHeight++
 				Count++
-				if Count > 100 {
+				if Count > 10 {
 					break
 				}
 				item = nd.blockQ.PopUntil(TargetHeight)
