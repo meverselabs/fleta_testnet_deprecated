@@ -32,8 +32,8 @@ func (fr *FormulatorNode) broadcastStatus() error {
 		LastHash: lastHash,
 	}
 	fr.ms.BroadcastMessage(nm)
-	fr.broadcastMessage(0, nm)
-	//fr.limitCastMessage(0, nm)
+	//fr.broadcastMessage(0, nm)
+	fr.limitCastMessage(0, nm)
 	return nil
 }
 
