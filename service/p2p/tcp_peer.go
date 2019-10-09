@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/common/queue"
 	"github.com/fletaio/fleta_testnet/common/util"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
@@ -19,16 +18,14 @@ import (
 // TCPPeer manages send and recv of the connection
 type TCPPeer struct {
 	sync.Mutex
-	conn           net.Conn
-	id             string
-	name           string
-	guessHeight    uint32
-	writeQueue     *queue.Queue
-	writeHighQueue *queue.Queue
-	isClose        bool
-	connectedTime  int64
-	pingCount      uint64
-	pingType       uint16
+	conn          net.Conn
+	id            string
+	name          string
+	guessHeight   uint32
+	isClose       bool
+	connectedTime int64
+	pingCount     uint64
+	pingType      uint16
 }
 
 // NewTCPPeer returns a TCPPeer
@@ -37,13 +34,11 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 		Name = ID
 	}
 	p := &TCPPeer{
-		conn:           conn,
-		id:             ID,
-		name:           Name,
-		writeQueue:     queue.NewQueue(),
-		writeHighQueue: queue.NewQueue(),
-		connectedTime:  connectedTime,
-		pingType:       types.DefineHashedType("p2p.PingMessage"),
+		conn:          conn,
+		id:            ID,
+		name:          Name,
+		connectedTime: connectedTime,
+		pingType:      types.DefineHashedType("p2p.PingMessage"),
 	}
 
 	go func() {
