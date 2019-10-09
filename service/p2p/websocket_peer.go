@@ -127,13 +127,13 @@ func (p *WebsocketPeer) ReadMessageData() (interface{}, []byte, error) {
 	}
 
 	t := util.BytesToUint16(rb)
-	Len := util.BytesToUint32(rb[2:])
+	cps := rb[2:3]
+	Len := util.BytesToUint32(rb[3:])
 	if Len == 0 {
 		return nil, nil, ErrUnknownMessage
 	} else if len(rb) != 7+int(Len) {
 		return nil, nil, ErrInvalidLength
 	} else {
-		cps := rb[6:7]
 		zbs := rb[7:]
 		var bs []byte
 		if cps[0] == 1 {

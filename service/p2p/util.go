@@ -160,20 +160,22 @@ func MessageToBytes(m interface{}) ([]byte, error) {
 
 // BytesToPacket returns the packet of bytes
 func BytesToPacket(bs []byte) ([]byte, error) {
+	doComp := len(bs) > 1000
 	var buffer bytes.Buffer
 	buffer.Write(bs[:2])
+	if doComp {
+		buffer.Write([]byte{1})
+	} else {
+		buffer.Write([]byte{0})
+	}
 	buffer.Write(make([]byte, 4))
 	if len(bs) > 1000 {
-		buffer.Write([]byte{1})
 		zw := gzip.NewWriter(&buffer)
 		zw.Write(bs[2:])
 		zw.Flush()
 		zw.Close()
 	} else if len(bs) > 2 {
-		buffer.Write([]byte{0})
 		buffer.Write(bs[2:])
-	} else {
-		buffer.Write([]byte{0})
 	}
 	wbs := buffer.Bytes()
 	binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
