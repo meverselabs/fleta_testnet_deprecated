@@ -148,7 +148,7 @@ func (p *WebsocketPeer) ReadMessageData() (interface{}, []byte, error) {
 
 // Send sends a message to the WebsocketPeer
 func (p *WebsocketPeer) Send(m interface{}) error {
-	data, err := MessageToBytes(m)
+	data, err := MessageToPacket(m)
 	if err != nil {
 		return err
 	}
@@ -158,18 +158,8 @@ func (p *WebsocketPeer) Send(m interface{}) error {
 	return nil
 }
 
-// SendRaw sends bytes to the WebsocketPeer
+// SendRaw sends packet to the WebsocketPeer
 func (p *WebsocketPeer) SendRaw(bs []byte) error {
-	wbs, err := BytesToPacket(bs)
-	if err != nil {
-		return err
-	}
-	p.writeQueue.Push(wbs)
-	return nil
-}
-
-// SendPacket sends packet to the WebsocketPeer
-func (p *WebsocketPeer) SendPacket(bs []byte) error {
 	p.writeQueue.Push(bs)
 	return nil
 }

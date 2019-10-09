@@ -145,7 +145,7 @@ func (ms *ObserverNodeMesh) SendTo(pubhash common.PublicHash, m interface{}) err
 }
 
 // SendTo sends a message to the observer
-func (ms *ObserverNodeMesh) SendPacketTo(pubhash common.PublicHash, bs []byte) error {
+func (ms *ObserverNodeMesh) SendRawTo(pubhash common.PublicHash, bs []byte) error {
 	ID := string(pubhash[:])
 
 	ms.Lock()
@@ -160,7 +160,7 @@ func (ms *ObserverNodeMesh) SendPacketTo(pubhash common.PublicHash, bs []byte) e
 		return ErrNotExistObserverPeer
 	}
 
-	if err := p.SendPacket(bs); err != nil {
+	if err := p.SendRaw(bs); err != nil {
 		rlog.Println(err)
 		ms.RemovePeer(p.ID())
 	}

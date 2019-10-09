@@ -142,7 +142,7 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 
 // Send sends a message to the TCPPeer
 func (p *TCPPeer) Send(m interface{}) error {
-	data, err := MessageToBytes(m)
+	data, err := MessageToPacket(m)
 	if err != nil {
 		return err
 	}
@@ -152,20 +152,8 @@ func (p *TCPPeer) Send(m interface{}) error {
 	return nil
 }
 
-// SendRaw sends bytes to the TCPPeer
+// SendRaw sends packet to the TCPPeer
 func (p *TCPPeer) SendRaw(bs []byte) error {
-	wbs, err := BytesToPacket(bs)
-	if err != nil {
-		return err
-	}
-	if err := p.SendPacket(wbs); err != nil {
-		return err
-	}
-	return nil
-}
-
-// SendPacket sends packet to the TCPPeer
-func (p *TCPPeer) SendPacket(bs []byte) error {
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
 	}

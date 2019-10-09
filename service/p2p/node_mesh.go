@@ -184,8 +184,8 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
 	return nil
 }
 
-// SendPacketTo sends a message to the node
-func (ms *NodeMesh) SendPacketTo(pubhash common.PublicHash, bs []byte) error {
+// SendRawTo sends a message to the node
+func (ms *NodeMesh) SendRawTo(pubhash common.PublicHash, bs []byte) error {
 	ID := string(pubhash[:])
 
 	ms.Lock()
@@ -200,7 +200,7 @@ func (ms *NodeMesh) SendPacketTo(pubhash common.PublicHash, bs []byte) error {
 		return ErrNotExistPeer
 	}
 
-	if err := p.SendPacket(bs); err != nil {
+	if err := p.SendRaw(bs); err != nil {
 		rlog.Println(err)
 		ms.RemovePeer(p.ID())
 	}
@@ -209,7 +209,7 @@ func (ms *NodeMesh) SendPacketTo(pubhash common.PublicHash, bs []byte) error {
 
 // ExceptCastLimit sends a message within the given number except the peer
 func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
-	data, err := MessageToBytes(m)
+	data, err := MessageToPacket(m)
 	if err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func (ms *NodeMesh) BroadcastRaw(bs []byte) {
 
 // BroadcastMessage sends a message to all peers
 func (ms *NodeMesh) BroadcastMessage(m interface{}) error {
-	data, err := MessageToBytes(m)
+	data, err := MessageToPacket(m)
 	if err != nil {
 		return err
 	}

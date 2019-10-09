@@ -203,7 +203,7 @@ func (nd *Node) Run(BindAddress string) {
 					item := v.(*SendMessageItem)
 					//log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
 					if len(item.Packet) > 0 {
-						if err := nd.ms.SendPacketTo(item.Target, item.Packet); err != nil {
+						if err := nd.ms.SendRawTo(item.Target, item.Packet); err != nil {
 							nd.ms.RemovePeer(string(item.Target[:]))
 						}
 					} else {

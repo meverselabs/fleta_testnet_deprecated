@@ -375,7 +375,7 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 				} else {
 					raw = value.([]byte)
 				}
-				if err := p.SendPacket(raw); err != nil {
+				if err := p.SendRaw(raw); err != nil {
 					return err
 				}
 				p.UpdateGuessHeight(msg.Height)
@@ -1099,7 +1099,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 		} else {
 			raw = value.([]byte)
 		}
-		if err := ob.ms.SendPacketTo(SenderPublicHash, raw); err != nil {
+		if err := ob.ms.SendRawTo(SenderPublicHash, raw); err != nil {
 			return err
 		}
 	case *p2p.StatusMessage:

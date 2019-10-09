@@ -113,7 +113,7 @@ func (ms *FormulatorNodeMesh) BroadcastRaw(bs []byte) {
 
 // BroadcastMessage sends a message to all peers
 func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) error {
-	data, err := p2p.MessageToBytes(m)
+	data, err := p2p.MessageToPacket(m)
 	if err != nil {
 		return err
 	}
