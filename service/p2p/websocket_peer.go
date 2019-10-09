@@ -9,10 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/fletaio/fleta_testnet/common/queue"
 	"github.com/fletaio/fleta_testnet/common/util"
 	"github.com/fletaio/fleta_testnet/encoding"
-	"github.com/gorilla/websocket"
 )
 
 // WebsocketPeer manages send and recv of the connection
@@ -68,17 +69,10 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 			default:
 				hasMessage := false
 				if v := p.writeQueue.Pop(); v != nil {
-					bs := v.([]byte)
-					var buffer bytes.Buffer
-					buffer.Write(bs[:2])
-					buffer.Write(make([]byte, 4))
-					if len(bs) > 2 {
-						zw := gzip.NewWriter(&buffer)
-						zw.Write(bs[2:])
-						zw.Flush()
-						zw.Close()
+					wbs, err := BytesToPacket(v.([]byte))
+					if err != nil {
+						return
 					}
-					wbs := buffer.Bytes()
 					binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
 					if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 						return
@@ -126,34 +120,42 @@ func (p *WebsocketPeer) Close() {
 
 // ReadMessageData returns a message data
 func (p *WebsocketPeer) ReadMessageData() (interface{}, []byte, error) {
-	_, bs, err := p.conn.ReadMessage()
+	_, rb, err := p.conn.ReadMessage()
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(bs) < 6 {
+	if len(rb) < 6 {
 		return nil, nil, ErrInvalidLength
 	}
 
-	t := util.BytesToUint16(bs)
-	Len := util.BytesToUint32(bs[2:])
+	t := util.BytesToUint16(rb)
+	Len := util.BytesToUint32(rb[2:])
 	if Len == 0 {
 		return nil, nil, ErrUnknownMessage
-	} else if len(bs) != 6+int(Len) {
+	} else if len(rb) != 7+int(Len) {
 		return nil, nil, ErrInvalidLength
 	} else {
-		zbs := bs[6:]
-		zr, err := gzip.NewReader(bytes.NewReader(zbs))
-		if err != nil {
-			return nil, nil, err
+		cps := rb[6:7]
+		zbs := rb[7:]
+		var bs []byte
+		if cps[0] == 1 {
+			zr, err := gzip.NewReader(bytes.NewReader(zbs))
+			if err != nil {
+				return nil, nil, err
+			}
+			defer zr.Close()
+
+			v, err := ioutil.ReadAll(zr)
+			if err != nil {
+				return nil, nil, err
+			}
+			bs = v
+		} else {
+			bs = zbs
 		}
-		defer zr.Close()
 
 		fc := encoding.Factory("message")
 		m, err := fc.Create(t)
-		if err != nil {
-			return nil, nil, err
-		}
-		bs, err := ioutil.ReadAll(zr)
 		if err != nil {
 			return nil, nil, err
 		}
