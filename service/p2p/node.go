@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mr-tron/base58/base58"
+
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
@@ -175,7 +177,16 @@ func (nd *Node) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*RecvMessageItem)
 					if _, is := item.Message.(*TransactionMessage); !is {
-						log.Println("RecvMessage", reflect.ValueOf(item.Message).Elem().Type().Name())
+						switch msg := item.Message.(type) {
+						case *RequestMessage:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+						case *StatusMessage:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+						case *BlockMessage:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+						default:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+						}
 					}
 					if err := nd.handlePeerMessage(item.PeerID, item.Message); err != nil {
 						nd.ms.RemovePeer(item.PeerID)
@@ -201,12 +212,24 @@ func (nd *Node) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*SendMessageItem)
-					//log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
 					if len(item.Packet) > 0 {
+						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage")
 						if err := nd.ms.SendRawTo(item.Target, item.Packet); err != nil {
 							nd.ms.RemovePeer(string(item.Target[:]))
 						}
 					} else {
+						if _, is := item.Message.(*TransactionMessage); !is {
+							switch msg := item.Message.(type) {
+							case *RequestMessage:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *StatusMessage:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *BlockMessage:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+							default:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+							}
+						}
 						var EmptyHash common.PublicHash
 						if bytes.Equal(item.Target[:], EmptyHash[:]) {
 							if item.Limit > 0 {
@@ -337,10 +360,11 @@ func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{
 	})
 }
 
-func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte) {
+func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte, Height uint32) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
 		Target: Target,
 		Packet: raw,
+		Height: Height,
 	})
 }
 
@@ -394,7 +418,7 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		} else {
 			raw = value.([]byte)
 		}
-		nd.sendMessagePacket(0, SenderPublicHash, raw)
+		nd.sendMessagePacket(0, SenderPublicHash, raw, msg.Height)
 		return nil
 	case *StatusMessage:
 		nd.statusLock.Lock()

@@ -17,6 +17,7 @@ func (fr *FormulatorNode) broadcastStatus() error {
 	}
 	fr.ms.BroadcastMessage(nm)
 	fr.broadcastMessage(0, nm)
+	//fr.limitCastMessage(0, nm)
 	return nil
 }
 

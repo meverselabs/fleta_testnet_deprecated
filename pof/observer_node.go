@@ -258,7 +258,7 @@ func (ob *ObserverNode) OnTimerExpired(height uint32, value string) {
 			var pubhash common.PublicHash
 			copy(pubhash[:], []byte(p.ID()))
 			if pubhash != ob.myPublicHash && pubhash != TargetPublicHash {
-				ob.sendRequestBlockTo(pubhash, height, 1)
+				ob.sendRequestBlockTo(pubhash, height)
 				break
 			}
 		}
@@ -1105,19 +1105,9 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				if BaseHeight > msg.Height {
 					break
 				}
-				enableCount := 0
 				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
 					if !ob.requestTimer.Exist(i) {
-						enableCount++
-					}
-				}
-				if enableCount == 10 {
-					ob.sendRequestBlockTo(SenderPublicHash, BaseHeight+1, 10)
-				} else if enableCount > 0 {
-					for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
-						if !ob.requestTimer.Exist(i) {
-							ob.sendRequestBlockTo(SenderPublicHash, i, 1)
-						}
+						ob.sendRequestBlockTo(SenderPublicHash, i)
 					}
 				}
 			}

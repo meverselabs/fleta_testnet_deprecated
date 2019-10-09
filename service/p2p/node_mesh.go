@@ -512,6 +512,7 @@ type RecvMessageItem struct {
 type SendMessageItem struct {
 	Target  common.PublicHash
 	Message interface{}
-	Packet  []byte
 	Limit   int
+	Packet  []byte
+	Height  uint32
 }

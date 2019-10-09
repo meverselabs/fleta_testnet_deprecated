@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mr-tron/base58/base58"
+
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
@@ -200,7 +202,16 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*p2p.RecvMessageItem)
 					if _, is := item.Message.(*p2p.TransactionMessage); !is {
-						log.Println("RecvMessage", reflect.ValueOf(item.Message).Elem().Type().Name())
+						switch msg := item.Message.(type) {
+						case *p2p.RequestMessage:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+						case *p2p.StatusMessage:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+						case *p2p.BlockMessage:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+						default:
+							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+						}
 					}
 					if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 						fr.nm.RemovePeer(item.PeerID)
@@ -226,12 +237,24 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*p2p.SendMessageItem)
-					//log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
 					if len(item.Packet) > 0 {
+						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage")
 						if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
 							fr.nm.RemovePeer(string(item.Target[:]))
 						}
 					} else {
+						if _, is := item.Message.(*p2p.TransactionMessage); !is {
+							switch msg := item.Message.(type) {
+							case *p2p.RequestMessage:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *p2p.StatusMessage:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *p2p.BlockMessage:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+							default:
+								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+							}
+						}
 						var EmptyHash common.PublicHash
 						if bytes.Equal(item.Target[:], EmptyHash[:]) {
 							if item.Limit > 0 {
@@ -490,7 +513,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 		} else {
 			raw = value.([]byte)
 		}
-		fr.sendMessagePacket(0, SenderPublicHash, raw)
+		fr.sendMessagePacket(0, SenderPublicHash, raw, msg.Height)
 		return nil
 	case *p2p.StatusMessage:
 		fr.statusLock.Lock()
@@ -639,16 +662,17 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 			}
 
 			if RetryCount == 0 {
-				Count := uint8(msg.TargetHeight - Height - 1)
+				Count := uint32(msg.TargetHeight - Height - 1)
 				if Count > 10 {
 					Count = 10
 				}
-
-				sm := &p2p.RequestMessage{
-					Height: Height + 1,
-				}
-				if err := fr.ms.SendTo(ID, sm); err != nil {
-					return err
+				for i := uint32(1); i <= Count; i++ {
+					sm := &p2p.RequestMessage{
+						Height: Height + i,
+					}
+					if err := fr.ms.SendTo(ID, sm); err != nil {
+						return err
+					}
 				}
 			}
 			go func() {
@@ -1014,10 +1038,11 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	return nil
 }
 
-func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte) {
+func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte, Height uint32) {
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
 		Target: Target,
 		Packet: bs,
+		Height: Height,
 	})
 }
 

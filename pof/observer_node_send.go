@@ -402,7 +402,7 @@ func (ob *ObserverNode) broadcastStatus() error {
 	return nil
 }
 
-func (ob *ObserverNode) sendRequestBlockTo(TargetPubHash common.PublicHash, Height uint32, Count uint8) error {
+func (ob *ObserverNode) sendRequestBlockTo(TargetPubHash common.PublicHash, Height uint32) error {
 	if TargetPubHash == ob.myPublicHash {
 		return nil
 	}
