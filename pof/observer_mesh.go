@@ -209,7 +209,7 @@ func (ms *ObserverNodeMesh) BroadcastRaw(bs []byte) {
 
 // BroadcastMessage sends a message to all peers
 func (ms *ObserverNodeMesh) BroadcastMessage(m interface{}) error {
-	bs, err := p2p.MessageToPacket(m)
+	data, err := p2p.MessageToPacket(m)
 	if err != nil {
 		return err
 	}
