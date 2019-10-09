@@ -70,7 +70,7 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 					continue
 				}
 				wbs := v.([]byte)
-				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				if err := p.conn.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
 					return
 				}
 				if err := p.conn.WriteMessage(websocket.BinaryMessage, wbs); err != nil {

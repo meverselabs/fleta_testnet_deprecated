@@ -156,7 +156,7 @@ func (p *TCPPeer) Send(m interface{}) error {
 
 // SendRaw sends packet to the TCPPeer
 func (p *TCPPeer) SendRaw(bs []byte) error {
-	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := p.conn.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
 		return err
 	}
 	if _, err := p.conn.Write(bs); err != nil {

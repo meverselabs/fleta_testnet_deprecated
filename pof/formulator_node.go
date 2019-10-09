@@ -92,7 +92,6 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		txpool:               txpool.NewTransactionPool(),
 		txQ:                  queue.NewExpireQueue(),
 		recvQueues: []*queue.Queue{
-			queue.NewQueue(), //observer
 			queue.NewQueue(), //block
 			queue.NewQueue(), //tx
 			queue.NewQueue(), //peer
@@ -194,91 +193,72 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		for !fr.isClose {
 			hasMessage := false
 			for !fr.isClose {
-				for _, q := range fr.recvQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*p2p.RecvMessageItem)
-					if _, is := item.Message.(*p2p.TransactionMessage); !is {
-						switch msg := item.Message.(type) {
-						case *p2p.RequestMessage:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-						case *p2p.StatusMessage:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-						case *p2p.BlockMessage:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-						default:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
-						}
-					}
-					if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
-						fr.nm.RemovePeer(item.PeerID)
-					}
-					break
-				}
-				if !hasMessage {
-					break
-				}
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-
-	go func() {
-		for !fr.isClose {
-			hasMessage := false
-			for !fr.isClose {
-				for _, q := range fr.sendQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*p2p.SendMessageItem)
-					if len(item.Packet) > 0 {
-						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
-						if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
-							fr.nm.RemovePeer(string(item.Target[:]))
-						}
-					} else {
+				for i, rq := range fr.recvQueues {
+					if v := rq.Pop(); v != nil {
+						hasMessage = true
+						item := v.(*p2p.RecvMessageItem)
 						if _, is := item.Message.(*p2p.TransactionMessage); !is {
 							switch msg := item.Message.(type) {
 							case *p2p.RequestMessage:
-								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
 							case *p2p.StatusMessage:
-								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
 							case *p2p.BlockMessage:
-								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
 							default:
-								log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
 							}
 						}
-						var EmptyHash common.PublicHash
-						if bytes.Equal(item.Target[:], EmptyHash[:]) {
-							if item.Limit > 0 {
-								if err := fr.nm.ExceptCastLimit("", item.Message, item.Limit); err != nil {
-									fr.nm.RemovePeer(string(item.Target[:]))
-								}
-							} else {
-								if err := fr.nm.BroadcastMessage(item.Message); err != nil {
-									fr.nm.RemovePeer(string(item.Target[:]))
-								}
+						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
+							fr.nm.RemovePeer(item.PeerID)
+						}
+					}
+					sq := fr.sendQueues[i]
+					if v := sq.Pop(); v != nil {
+						hasMessage = true
+						item := v.(*p2p.SendMessageItem)
+						if len(item.Packet) > 0 {
+							log.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
+							if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
+								fr.nm.RemovePeer(string(item.Target[:]))
 							}
 						} else {
-							if item.Limit > 0 {
-								if err := fr.nm.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
-									fr.nm.RemovePeer(string(item.Target[:]))
+							if _, is := item.Message.(*p2p.TransactionMessage); !is {
+								switch msg := item.Message.(type) {
+								case *p2p.RequestMessage:
+									log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								case *p2p.StatusMessage:
+									log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								case *p2p.BlockMessage:
+									log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+								default:
+									log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+								}
+							}
+							var EmptyHash common.PublicHash
+							if bytes.Equal(item.Target[:], EmptyHash[:]) {
+								if item.Limit > 0 {
+									if err := fr.nm.ExceptCastLimit("", item.Message, item.Limit); err != nil {
+										fr.nm.RemovePeer(string(item.Target[:]))
+									}
+								} else {
+									if err := fr.nm.BroadcastMessage(item.Message); err != nil {
+										fr.nm.RemovePeer(string(item.Target[:]))
+									}
 								}
 							} else {
-								if err := fr.nm.SendTo(item.Target, item.Message); err != nil {
-									fr.nm.RemovePeer(string(item.Target[:]))
+								if item.Limit > 0 {
+									if err := fr.nm.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
+										fr.nm.RemovePeer(string(item.Target[:]))
+									}
+								} else {
+									if err := fr.nm.SendTo(item.Target, item.Message); err != nil {
+										fr.nm.RemovePeer(string(item.Target[:]))
+									}
 								}
 							}
 						}
 					}
-					break
 				}
 				if !hasMessage {
 					break
