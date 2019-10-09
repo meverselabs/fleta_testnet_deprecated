@@ -186,21 +186,15 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		for !fr.isClose {
 			hasMessage := false
 			for {
-				for i, q := range fr.recvQueues {
+				for _, q := range fr.recvQueues {
 					v := q.Pop()
 					if v == nil {
 						continue
 					}
 					hasMessage = true
 					item := v.(*p2p.RecvMessageItem)
-					if i == 0 {
-						if err := fr.handleObserverMessage(item.PeerID, item.Message, 0); err != nil {
-							fr.ms.RemovePeer(item.PeerID)
-						}
-					} else {
-						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
-							fr.nm.RemovePeer(item.PeerID)
-						}
+					if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
+						fr.nm.RemovePeer(item.PeerID)
 					}
 					break
 				}
@@ -423,11 +417,9 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 func (fr *FormulatorNode) onObserverRecv(ID string, m interface{}) error {
-	item := &p2p.RecvMessageItem{
-		PeerID:  ID,
-		Message: m,
+	if err := fr.handleObserverMessage(ID, m, 0); err != nil {
+		return err
 	}
-	fr.recvQueues[0].Push(item)
 	return nil
 }
 
@@ -439,17 +431,17 @@ func (fr *FormulatorNode) OnRecv(ID string, m interface{}) error {
 	}
 	switch m.(type) {
 	case *p2p.RequestMessage:
-		fr.recvQueues[1].Push(item)
+		fr.recvQueues[0].Push(item)
 	case *p2p.StatusMessage:
-		fr.recvQueues[1].Push(item)
+		fr.recvQueues[0].Push(item)
 	case *p2p.BlockMessage:
-		fr.recvQueues[1].Push(item)
+		fr.recvQueues[0].Push(item)
 	case *p2p.TransactionMessage:
-		fr.recvQueues[2].Push(item)
+		fr.recvQueues[1].Push(item)
 	case *p2p.PeerListMessage:
-		fr.recvQueues[3].Push(item)
+		fr.recvQueues[2].Push(item)
 	case *p2p.RequestPeerListMessage:
-		fr.recvQueues[3].Push(item)
+		fr.recvQueues[2].Push(item)
 	}
 	return nil
 }
