@@ -528,7 +528,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 
 		Height := fr.cs.cn.Provider().Height()
 		if Height < msg.Height {
-			for q := uint32(0); q < 10; q++ {
+			for q := uint32(0); q < 3; q++ {
 				BaseHeight := Height + q*10
 				if BaseHeight > msg.Height {
 					break
@@ -597,7 +597,7 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	defer fr.requestLock.Unlock()
 
 	Height := fr.cs.cn.Provider().Height()
-	for q := uint32(0); q < 10; q++ {
+	for q := uint32(0); q < 3; q++ {
 		BaseHeight := Height + q*10
 
 		var LimitHeight uint32

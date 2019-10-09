@@ -39,6 +39,6 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 		Height: Height,
 	}
 	fr.sendMessage(0, TargetPubHash, nm)
-	fr.requestNodeTimer.Add(Height, 10*time.Second, string(TargetPubHash[:]))
+	fr.requestNodeTimer.Add(Height, 5*time.Second, string(TargetPubHash[:]))
 	return nil
 }

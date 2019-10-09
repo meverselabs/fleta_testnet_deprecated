@@ -1100,7 +1100,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 	case *p2p.StatusMessage:
 		Height := cp.Height()
 		if Height < msg.Height {
-			for q := uint32(0); q < 10; q++ {
+			for q := uint32(0); q < 3; q++ {
 				BaseHeight := Height + q*10
 				if BaseHeight > msg.Height {
 					break

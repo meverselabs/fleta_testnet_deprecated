@@ -317,6 +317,10 @@ func (ms *NodeMesh) client(Address string, TargetPubHash common.PublicHash) erro
 	if pubhash != TargetPubHash {
 		return common.ErrInvalidPublicHash
 	}
+	myPublicHash := common.NewPublicHash(ms.key.PublicKey())
+	if pubhash == myPublicHash {
+		return common.ErrInvalidPublicHash
+	}
 	duration := time.Since(start)
 	var ipAddress string
 	if addr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {

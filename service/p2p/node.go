@@ -213,7 +213,7 @@ func (nd *Node) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*SendMessageItem)
 					if len(item.Packet) > 0 {
-						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage")
+						log.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
 						if err := nd.ms.SendRawTo(item.Target, item.Packet); err != nil {
 							nd.ms.RemovePeer(string(item.Target[:]))
 						}
@@ -433,7 +433,7 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 
 		Height := nd.cn.Provider().Height()
 		if Height < msg.Height {
-			for q := uint32(0); q < 10; q++ {
+			for q := uint32(0); q < 3; q++ {
 				BaseHeight := Height + q*10
 				if BaseHeight > msg.Height {
 					break
@@ -596,7 +596,7 @@ func (nd *Node) tryRequestBlocks() {
 	defer nd.requestLock.Unlock()
 
 	Height := nd.cn.Provider().Height()
-	for q := uint32(0); q < 10; q++ {
+	for q := uint32(0); q < 3; q++ {
 		BaseHeight := Height + q*10
 
 		var LimitHeight uint32

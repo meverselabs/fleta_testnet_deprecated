@@ -358,7 +358,7 @@ func (ci *ClientNode) OnRecv(p peer.Peer, m interface{}) error {
 
 		Height := ci.cs.cn.Provider().Height()
 		if Height < msg.Height {
-			for q := uint32(0); q < 10; q++ {
+			for q := uint32(0); q < 3; q++ {
 				BaseHeight := Height + q*10
 				if BaseHeight > msg.Height {
 					break
@@ -441,7 +441,7 @@ func (ci *ClientNode) tryRequestBlocks() {
 	defer ci.requestLock.Unlock()
 
 	Height := ci.cs.cn.Provider().Height()
-	for q := uint32(0); q < 10; q++ {
+	for q := uint32(0); q < 3; q++ {
 		BaseHeight := Height + q*10
 
 		var LimitHeight uint32
