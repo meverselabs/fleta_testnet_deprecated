@@ -194,8 +194,6 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*p2p.RecvMessageItem)
 					if i == 0 {
-						fr.recvQueues[0].Push(item)
-
 						if err := fr.handleObserverMessage(item.PeerID, item.Message, 0); err != nil {
 							fr.ms.RemovePeer(item.PeerID)
 						}
