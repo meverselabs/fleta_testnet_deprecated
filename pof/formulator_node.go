@@ -356,12 +356,12 @@ func (fr *FormulatorNode) addTx(t uint16, tx types.Transaction, sigs []common.Si
 
 	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 
-	ctx := fr.cs.ct.NewContext()
 	if fr.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
 	}
+	cp := fr.cs.cn.Provider()
 	if atx, is := tx.(chain.AccountTransaction); is {
-		seq := ctx.Seq(atx.From())
+		seq := cp.Seq(atx.From())
 		if atx.Seq() <= seq {
 			return txpool.ErrPastSeq
 		} else if atx.Seq() > seq+100 {
@@ -381,6 +381,7 @@ func (fr *FormulatorNode) addTx(t uint16, tx types.Transaction, sigs []common.Si
 	if err != nil {
 		return err
 	}
+	ctx := fr.cs.ct.NewContext()
 	ctw := types.NewContextWrapper(pid, ctx)
 	if err := tx.Validate(p, ctw, signers); err != nil {
 		return err

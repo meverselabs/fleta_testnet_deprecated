@@ -553,12 +553,12 @@ func (nd *Node) addTx(t uint16, tx types.Transaction, sigs []common.Signature) e
 
 	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
 
-	ctx := nd.cn.NewContext()
+	cp := nd.cn.Provider()
 	if nd.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
 	}
 	if atx, is := tx.(chain.AccountTransaction); is {
-		seq := ctx.Seq(atx.From())
+		seq := cp.Seq(atx.From())
 		if atx.Seq() <= seq {
 			return txpool.ErrPastSeq
 		} else if atx.Seq() > seq+100 {
@@ -578,6 +578,7 @@ func (nd *Node) addTx(t uint16, tx types.Transaction, sigs []common.Signature) e
 	if err != nil {
 		return err
 	}
+	ctx := nd.cn.NewContext()
 	ctw := types.NewContextWrapper(pid, ctx)
 	if err := tx.Validate(p, ctw, signers); err != nil {
 		return err
