@@ -2,10 +2,14 @@ package pof
 
 import (
 	"bytes"
+	"log"
+	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
@@ -61,6 +65,7 @@ type FormulatorNode struct {
 	isRunning            bool
 	closeLock            sync.RWMutex
 	isClose              bool
+	cache                gcache.Cache
 }
 
 // NewFormulatorNode returns a FormulatorNode
@@ -95,6 +100,7 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 			queue.NewQueue(), //tx
 			queue.NewQueue(), //peer
 		},
+		cache: gcache.New(500).LRU().Build(),
 	}
 	fr.ms = NewFormulatorNodeMesh(key, NetAddressMap, fr)
 	fr.nm = p2p.NewNodeMesh(fr.cs.cn.Provider().ChainID(), ndkey, SeedNodeMap, fr, peerStorePath)
@@ -193,6 +199,9 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*p2p.RecvMessageItem)
+					if _, is := item.Message.(*p2p.TransactionMessage); !is {
+						log.Println("RecvMessage", reflect.ValueOf(item.Message).Elem().Type().Name())
+					}
 					if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 						fr.nm.RemovePeer(item.PeerID)
 					}
@@ -452,32 +461,31 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 
 	switch msg := m.(type) {
 	case *p2p.RequestMessage:
-		if msg.Count == 0 {
-			msg.Count = 1
-		}
-		if msg.Count > 10 {
-			msg.Count = 10
-		}
 		cp := fr.cs.cn.Provider()
 		Height := cp.Height()
 		if msg.Height > Height {
 			return nil
 		}
-		list := make([]*types.Block, 0, 10)
-		for i := uint32(0); i < uint32(msg.Count); i++ {
-			if msg.Height+i > Height {
-				break
-			}
-			b, err := cp.Block(msg.Height + i)
+		var raw []byte
+		value, err := fr.cache.Get(msg.Height)
+		if err != nil {
+			b, err := cp.Block(msg.Height)
 			if err != nil {
 				return err
 			}
-			list = append(list, b)
+			data, err := p2p.MessageToBytes(&p2p.BlockMessage{
+				Block: b,
+			})
+			if err != nil {
+				return err
+			}
+			fr.cache.Set(msg.Height, data)
+			raw = data
+		} else {
+			raw = value.([]byte)
 		}
-		sm := &p2p.BlockMessage{
-			Blocks: list,
-		}
-		fr.sendMessage(0, SenderPublicHash, sm)
+		fr.sendMessagePacket(0, SenderPublicHash, raw)
+		return nil
 	case *p2p.StatusMessage:
 		fr.statusLock.Lock()
 		if status, has := fr.statusMap[ID]; has {
@@ -524,25 +532,21 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			}
 		}
 	case *p2p.BlockMessage:
-		for _, b := range msg.Blocks {
-			if err := fr.addBlock(b); err != nil {
-				if err == chain.ErrFoundForkedBlock {
-					fr.nm.RemovePeer(ID)
-				}
-				return err
+		if err := fr.addBlock(msg.Block); err != nil {
+			if err == chain.ErrFoundForkedBlock {
+				fr.nm.RemovePeer(ID)
 			}
+			return err
 		}
 
-		if len(msg.Blocks) > 0 {
-			fr.statusLock.Lock()
-			if status, has := fr.statusMap[ID]; has {
-				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
-				if status.Height < lastHeight {
-					status.Height = lastHeight
-				}
+		fr.statusLock.Lock()
+		if status, has := fr.statusMap[ID]; has {
+			lastHeight := msg.Block.Header.Height
+			if status.Height < lastHeight {
+				status.Height = lastHeight
 			}
-			fr.statusLock.Unlock()
 		}
+		fr.statusLock.Unlock()
 	case *p2p.TransactionMessage:
 		errCh := make(chan error)
 		idx := atomic.AddUint64(&fr.txMsgIdx, 1) % uint64(len(fr.txMsgChans))
@@ -657,7 +661,6 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 
 				sm := &p2p.RequestMessage{
 					Height: Height + 1,
-					Count:  Count,
 				}
 				if err := fr.ms.SendTo(ID, sm); err != nil {
 					return err
@@ -780,57 +783,24 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 			}
 		}
 		return nil
-	case *p2p.RequestMessage:
-		if msg.Count == 0 {
-			msg.Count = 1
-		}
-		if msg.Count > 10 {
-			msg.Count = 10
-		}
-		Height := cp.Height()
-		if msg.Height > Height {
-			return nil
-		}
-		list := make([]*types.Block, 0, 10)
-		for i := uint32(0); i < uint32(msg.Count); i++ {
-			if msg.Height+i > Height {
-				break
+	case *p2p.BlockMessage:
+		if err := fr.addBlock(msg.Block); err != nil {
+			if err == chain.ErrFoundForkedBlock {
+				panic(err)
 			}
-			b, err := cp.Block(msg.Height + i)
-			if err != nil {
-				return err
-			}
-			list = append(list, b)
-		}
-		sm := &p2p.BlockMessage{
-			Blocks: list,
-		}
-		if err := fr.ms.SendTo(ID, sm); err != nil {
 			return err
 		}
-		return nil
-	case *p2p.BlockMessage:
-		for _, b := range msg.Blocks {
-			if err := fr.addBlock(b); err != nil {
-				if err == chain.ErrFoundForkedBlock {
-					panic(err)
-				}
-				return err
+
+		fr.statusLock.Lock()
+		if status, has := fr.obStatusMap[ID]; has {
+			lastHeight := msg.Block.Header.Height
+			if status.Height < lastHeight {
+				status.Height = lastHeight
 			}
 		}
+		fr.statusLock.Unlock()
 
-		if len(msg.Blocks) > 0 {
-			fr.statusLock.Lock()
-			if status, has := fr.obStatusMap[ID]; has {
-				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
-				if status.Height < lastHeight {
-					status.Height = lastHeight
-				}
-			}
-			fr.statusLock.Unlock()
-
-			fr.tryRequestNext()
-		}
+		fr.tryRequestNext()
 		return nil
 	case *p2p.StatusMessage:
 		fr.statusLock.Lock()
@@ -1057,6 +1027,13 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		}
 	}
 	return nil
+}
+
+func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte) {
+	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Target: Target,
+		Packet: bs,
+	})
 }
 
 func (fr *FormulatorNode) sendMessage(Priority int, Target common.PublicHash, m interface{}) {

@@ -184,6 +184,29 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
 	return nil
 }
 
+// SendPacketTo sends a message to the node
+func (ms *NodeMesh) SendPacketTo(pubhash common.PublicHash, bs []byte) error {
+	ID := string(pubhash[:])
+
+	ms.Lock()
+	var p peer.Peer
+	if cp, has := ms.clientPeerMap[ID]; has {
+		p = cp
+	} else if sp, has := ms.serverPeerMap[ID]; has {
+		p = sp
+	}
+	ms.Unlock()
+	if p == nil {
+		return ErrNotExistPeer
+	}
+
+	if err := p.SendPacket(bs); err != nil {
+		rlog.Println(err)
+		ms.RemovePeer(p.ID())
+	}
+	return nil
+}
+
 // ExceptCastLimit sends a message within the given number except the peer
 func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 	data, err := MessageToBytes(m)
@@ -506,5 +529,6 @@ type RecvMessageItem struct {
 type SendMessageItem struct {
 	Target  common.PublicHash
 	Message interface{}
+	Packet  []byte
 	Limit   int
 }

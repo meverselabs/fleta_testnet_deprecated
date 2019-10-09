@@ -409,11 +409,8 @@ func (ob *ObserverNode) sendRequestBlockTo(TargetPubHash common.PublicHash, Heig
 
 	nm := &p2p.RequestMessage{
 		Height: Height,
-		Count:  Count,
 	}
 	ob.ms.SendTo(TargetPubHash, nm)
-	for i := uint32(0); i < uint32(Count); i++ {
-		ob.requestTimer.Add(Height+i, 2*time.Second, string(TargetPubHash[:]))
-	}
+	ob.requestTimer.Add(Height, 2*time.Second, string(TargetPubHash[:]))
 	return nil
 }

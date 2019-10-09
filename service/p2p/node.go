@@ -2,12 +2,14 @@ package p2p
 
 import (
 	"bytes"
+	"log"
+	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/service/p2p/peer"
+	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
@@ -18,6 +20,7 @@ import (
 	"github.com/fletaio/fleta_testnet/core/txpool"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
+	"github.com/fletaio/fleta_testnet/service/p2p/peer"
 )
 
 // Node receives a block by the consensus
@@ -43,6 +46,7 @@ type Node struct {
 	isRunning    bool
 	closeLock    sync.RWMutex
 	isClose      bool
+	cache        gcache.Cache
 }
 
 // NewNode returns a Node
@@ -65,6 +69,7 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 			queue.NewQueue(), //tx
 			queue.NewQueue(), //peer
 		},
+		cache: gcache.New(500).LRU().Build(),
 	}
 	nd.ms = NewNodeMesh(cn.Provider().ChainID(), key, SeedNodeMap, nd, peerStorePath)
 	nd.requestTimer = NewRequestTimer(nd)
@@ -169,6 +174,9 @@ func (nd *Node) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*RecvMessageItem)
+					if _, is := item.Message.(*TransactionMessage); !is {
+						log.Println("RecvMessage", reflect.ValueOf(item.Message).Elem().Type().Name())
+					}
 					if err := nd.handlePeerMessage(item.PeerID, item.Message); err != nil {
 						nd.ms.RemovePeer(item.PeerID)
 					}
@@ -194,25 +202,31 @@ func (nd *Node) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*SendMessageItem)
 					//log.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
-					var EmptyHash common.PublicHash
-					if bytes.Equal(item.Target[:], EmptyHash[:]) {
-						if item.Limit > 0 {
-							if err := nd.ms.ExceptCastLimit("", item.Message, item.Limit); err != nil {
-								nd.ms.RemovePeer(string(item.Target[:]))
-							}
-						} else {
-							if err := nd.ms.BroadcastMessage(item.Message); err != nil {
-								nd.ms.RemovePeer(string(item.Target[:]))
-							}
+					if len(item.Packet) > 0 {
+						if err := nd.ms.SendPacketTo(item.Target, item.Packet); err != nil {
+							nd.ms.RemovePeer(string(item.Target[:]))
 						}
 					} else {
-						if item.Limit > 0 {
-							if err := nd.ms.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
-								nd.ms.RemovePeer(string(item.Target[:]))
+						var EmptyHash common.PublicHash
+						if bytes.Equal(item.Target[:], EmptyHash[:]) {
+							if item.Limit > 0 {
+								if err := nd.ms.ExceptCastLimit("", item.Message, item.Limit); err != nil {
+									nd.ms.RemovePeer(string(item.Target[:]))
+								}
+							} else {
+								if err := nd.ms.BroadcastMessage(item.Message); err != nil {
+									nd.ms.RemovePeer(string(item.Target[:]))
+								}
 							}
 						} else {
-							if err := nd.ms.SendTo(item.Target, item.Message); err != nil {
-								nd.ms.RemovePeer(string(item.Target[:]))
+							if item.Limit > 0 {
+								if err := nd.ms.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
+									nd.ms.RemovePeer(string(item.Target[:]))
+								}
+							} else {
+								if err := nd.ms.SendTo(item.Target, item.Message); err != nil {
+									nd.ms.RemovePeer(string(item.Target[:]))
+								}
 							}
 						}
 					}
@@ -323,6 +337,13 @@ func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{
 	})
 }
 
+func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte) {
+	nd.sendQueues[Priority].Push(&SendMessageItem{
+		Target: Target,
+		Packet: raw,
+	})
+}
+
 func (nd *Node) broadcastMessage(Priority int, m interface{}) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
 		Message: m,
@@ -350,31 +371,30 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 
 	switch msg := m.(type) {
 	case *RequestMessage:
-		if msg.Count == 0 {
-			msg.Count = 1
-		}
-		if msg.Count > 10 {
-			msg.Count = 10
-		}
-		Height := nd.cn.Provider().Height()
+		cp := nd.cn.Provider()
+		Height := cp.Height()
 		if msg.Height > Height {
 			return nil
 		}
-		list := make([]*types.Block, 0, 10)
-		for i := uint32(0); i < uint32(msg.Count); i++ {
-			if msg.Height+i > Height {
-				break
-			}
-			b, err := nd.cn.Provider().Block(msg.Height + i)
+		var raw []byte
+		value, err := nd.cache.Get(msg.Height)
+		if err != nil {
+			b, err := cp.Block(msg.Height)
 			if err != nil {
 				return err
 			}
-			list = append(list, b)
+			data, err := MessageToBytes(&BlockMessage{
+				Block: b,
+			})
+			if err != nil {
+				return err
+			}
+			nd.cache.Set(msg.Height, data)
+			raw = data
+		} else {
+			raw = value.([]byte)
 		}
-		sm := &BlockMessage{
-			Blocks: list,
-		}
-		nd.sendMessage(0, SenderPublicHash, sm)
+		nd.sendMessagePacket(0, SenderPublicHash, raw)
 		return nil
 	case *StatusMessage:
 		nd.statusLock.Lock()
@@ -394,19 +414,9 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 				if BaseHeight > msg.Height {
 					break
 				}
-				enableCount := 0
 				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
 					if !nd.requestTimer.Exist(i) {
-						enableCount++
-					}
-				}
-				if enableCount == 10 {
-					nd.sendRequestBlockTo(SenderPublicHash, BaseHeight+1, 10)
-				} else if enableCount > 0 {
-					for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
-						if !nd.requestTimer.Exist(i) {
-							nd.sendRequestBlockTo(SenderPublicHash, i, 1)
-						}
+						nd.sendRequestBlockTo(SenderPublicHash, i)
 					}
 				}
 			}
@@ -423,26 +433,21 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		}
 		return nil
 	case *BlockMessage:
-		for _, b := range msg.Blocks {
-			if err := nd.addBlock(b); err != nil {
-				if err == chain.ErrFoundForkedBlock {
-					//TODO : critical error signal
-					nd.ms.RemovePeer(ID)
-				}
-				return err
+		if err := nd.addBlock(msg.Block); err != nil {
+			if err == chain.ErrFoundForkedBlock {
+				//TODO : critical error signal
+				nd.ms.RemovePeer(ID)
+			}
+			return err
+		}
+		nd.statusLock.Lock()
+		if status, has := nd.statusMap[ID]; has {
+			lastHeight := msg.Block.Header.Height
+			if status.Height < lastHeight {
+				status.Height = lastHeight
 			}
 		}
-
-		if len(msg.Blocks) > 0 {
-			nd.statusLock.Lock()
-			if status, has := nd.statusMap[ID]; has {
-				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
-				if status.Height < lastHeight {
-					status.Height = lastHeight
-				}
-			}
-			nd.statusLock.Unlock()
-		}
+		nd.statusLock.Unlock()
 		return nil
 	case *TransactionMessage:
 		errCh := make(chan error)
@@ -594,22 +599,11 @@ func (nd *Node) tryRequestBlocks() {
 		if len(selectedPubHash) == 0 {
 			break
 		}
-		enableCount := 0
-		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
-			if !nd.requestTimer.Exist(i) {
-				enableCount++
-			}
-		}
-
 		var TargetPublicHash common.PublicHash
 		copy(TargetPublicHash[:], []byte(selectedPubHash))
-		if enableCount == 10 {
-			nd.sendRequestBlockTo(TargetPublicHash, BaseHeight+1, 10)
-		} else if enableCount > 0 {
-			for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
-				if !nd.requestTimer.Exist(i) {
-					nd.sendRequestBlockTo(TargetPublicHash, i, 1)
-				}
+		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
+			if !nd.requestTimer.Exist(i) {
+				nd.sendRequestBlockTo(TargetPublicHash, i)
 			}
 		}
 	}

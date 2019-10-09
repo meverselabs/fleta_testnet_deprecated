@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluele/gcache"
+
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/debug"
 	"github.com/fletaio/fleta_testnet/common/key"
@@ -44,6 +46,7 @@ type ObserverNode struct {
 	isRunning        bool
 	closeLock        sync.RWMutex
 	isClose          bool
+	cache            gcache.Cache
 
 	prevRoundEndTime int64 // FOR DEBUG
 }
@@ -58,6 +61,7 @@ func NewObserverNode(key key.Key, NetAddressMap map[common.PublicHash]string, cs
 		myPublicHash: common.NewPublicHash(key.PublicKey()),
 		messageQueue: queue.NewQueue(),
 		blockQ:       queue.NewSortedQueue(),
+		cache:        gcache.New(500).LRU().Build(),
 	}
 	ob.ms = NewObserverNodeMesh(key, NetAddressMap, ob)
 	ob.fs = NewFormulatorService(ob)
@@ -349,36 +353,32 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 				enable = rankMap[p.ID()]
 			}
 			if enable {
-				if msg.Count == 0 {
-					msg.Count = 1
-				}
-				if msg.Count > 10 {
-					msg.Count = 10
-				}
 				Height := cp.Height()
 				if msg.Height > Height {
 					return nil
 				}
-				list := make([]*types.Block, 0, 10)
-				for i := uint32(0); i < uint32(msg.Count); i++ {
-					if msg.Height+i > Height {
-						break
-					}
-					b, err := cp.Block(msg.Height + i)
+				var raw []byte
+				value, err := ob.cache.Get(msg.Height)
+				if err != nil {
+					b, err := cp.Block(msg.Height)
 					if err != nil {
 						return err
 					}
-					list = append(list, b)
+					data, err := p2p.MessageToBytes(&p2p.BlockMessage{
+						Block: b,
+					})
+					if err != nil {
+						return err
+					}
+					ob.cache.Set(msg.Height, data)
+					raw = data
+				} else {
+					raw = value.([]byte)
 				}
-				sm := &p2p.BlockMessage{
-					Blocks: list,
-				}
-				if err := p.Send(sm); err != nil {
+				if err := p.SendPacket(raw); err != nil {
 					return err
 				}
-				if len(list) > 0 {
-					p.UpdateGuessHeight(list[len(list)-1].Header.Height)
-				}
+				p.UpdateGuessHeight(msg.Height)
 			}
 		}
 	case *p2p.StatusMessage:
@@ -1076,31 +1076,30 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			}
 		}
 	case *p2p.RequestMessage:
-		if msg.Count == 0 {
-			msg.Count = 1
-		}
-		if msg.Count > 10 {
-			msg.Count = 10
-		}
+		cp := ob.cs.cn.Provider()
 		Height := cp.Height()
 		if msg.Height > Height {
 			return nil
 		}
-		list := make([]*types.Block, 0, 10)
-		for i := uint32(0); i < uint32(msg.Count); i++ {
-			if msg.Height+i > Height {
-				break
-			}
-			b, err := cp.Block(msg.Height + i)
+		var raw []byte
+		value, err := ob.cache.Get(msg.Height)
+		if err != nil {
+			b, err := cp.Block(msg.Height)
 			if err != nil {
 				return err
 			}
-			list = append(list, b)
+			data, err := p2p.MessageToBytes(&p2p.BlockMessage{
+				Block: b,
+			})
+			if err != nil {
+				return err
+			}
+			ob.cache.Set(msg.Height, data)
+			raw = data
+		} else {
+			raw = value.([]byte)
 		}
-		sm := &p2p.BlockMessage{
-			Blocks: list,
-		}
-		if err := ob.ms.SendTo(SenderPublicHash, sm); err != nil {
+		if err := ob.ms.SendPacketTo(SenderPublicHash, raw); err != nil {
 			return err
 		}
 	case *p2p.StatusMessage:
@@ -1139,13 +1138,11 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			}
 		}
 	case *p2p.BlockMessage:
-		for _, b := range msg.Blocks {
-			if err := ob.addBlock(b); err != nil {
-				if err != nil {
-					panic(chain.ErrFoundForkedBlock)
-				}
-				return err
+		if err := ob.addBlock(msg.Block); err != nil {
+			if err != nil {
+				panic(err)
 			}
+			return err
 		}
 	default:
 		return p2p.ErrUnknownMessage

@@ -3,7 +3,6 @@ package p2p
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/binary"
 	"io/ioutil"
 	"net"
 	"sync"
@@ -157,28 +156,22 @@ func (p *TCPPeer) Send(m interface{}) error {
 
 // SendRaw sends bytes to the TCPPeer
 func (p *TCPPeer) SendRaw(bs []byte) error {
-	var buffer bytes.Buffer
-	buffer.Write(bs[:2])
-	buffer.Write(make([]byte, 4))
-	if len(bs) > 1000 {
-		buffer.Write([]byte{1})
-		zw := gzip.NewWriter(&buffer)
-		zw.Write(bs[2:])
-		zw.Flush()
-		zw.Close()
-	} else if len(bs) > 2 {
-		buffer.Write([]byte{0})
-		buffer.Write(bs[2:])
-	} else {
-		buffer.Write([]byte{0})
+	wbs, err := BytesToPacket(bs)
+	if err != nil {
+		return err
 	}
-	wbs := buffer.Bytes()
-	binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
+	if err := p.SendPacket(wbs); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SendPacket sends packet to the TCPPeer
+func (p *TCPPeer) SendPacket(bs []byte) error {
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return err
 	}
-	_, err := p.conn.Write(wbs)
-	if err != nil {
+	if _, err := p.conn.Write(bs); err != nil {
 		return err
 	}
 	return nil

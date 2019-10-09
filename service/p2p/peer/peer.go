@@ -8,6 +8,7 @@ type Peer interface {
 	ReadMessageData() (interface{}, []byte, error)
 	Send(m interface{}) error
 	SendRaw(bs []byte) error
+	SendPacket(wbs []byte) error
 	UpdateGuessHeight(height uint32)
 	GuessHeight() uint32
 	ConnectedTime() int64

@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"io"
 
@@ -141,7 +142,7 @@ func FillBytes(r io.Reader, bs []byte) (int64, error) {
 	return int64(read), nil
 }
 
-// MessageToBytes returns bytes to the message
+// MessageToBytes returns bytes of the message
 func MessageToBytes(m interface{}) ([]byte, error) {
 	var buffer bytes.Buffer
 	fc := encoding.Factory("message")
@@ -155,4 +156,26 @@ func MessageToBytes(m interface{}) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// BytesToPacket returns the packet of bytes
+func BytesToPacket(bs []byte) ([]byte, error) {
+	var buffer bytes.Buffer
+	buffer.Write(bs[:2])
+	buffer.Write(make([]byte, 4))
+	if len(bs) > 1000 {
+		buffer.Write([]byte{1})
+		zw := gzip.NewWriter(&buffer)
+		zw.Write(bs[2:])
+		zw.Flush()
+		zw.Close()
+	} else if len(bs) > 2 {
+		buffer.Write([]byte{0})
+		buffer.Write(bs[2:])
+	} else {
+		buffer.Write([]byte{0})
+	}
+	wbs := buffer.Bytes()
+	binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
+	return wbs, nil
 }
