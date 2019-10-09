@@ -2,6 +2,7 @@ package debug
 
 import (
 	"log"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,7 @@ func Result() {
 }
 
 type Profiler struct {
+	sync.Mutex
 	PointTimeMap  map[string]int64
 	PointCountMap map[string]int
 }
@@ -32,6 +34,9 @@ func (p *Profiler) Start(name string) *Timer {
 }
 
 func (p *Profiler) Result() {
+	p.Lock()
+	defer p.Unlock()
+
 	for name, t := range p.PointTimeMap {
 		log.Println(name, time.Duration(t))
 	}
@@ -46,6 +51,9 @@ type Timer struct {
 }
 
 func (t *Timer) Stop() {
+	t.p.Lock()
+	defer t.p.Unlock()
+
 	t.p.PointTimeMap[t.Name] += time.Now().UnixNano() - t.Begin
 	t.p.PointCountMap[t.Name]++
 }

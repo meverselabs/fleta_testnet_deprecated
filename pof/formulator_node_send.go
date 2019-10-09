@@ -7,6 +7,22 @@ import (
 	"github.com/fletaio/fleta_testnet/service/p2p"
 )
 
+func (fr *FormulatorNode) sendStatusTo(TargetPubHash common.PublicHash) error {
+	if TargetPubHash == fr.myPublicHash {
+		return nil
+	}
+
+	cp := fr.cs.cn.Provider()
+	height, lastHash, _ := cp.LastStatus()
+	nm := &p2p.StatusMessage{
+		Version:  cp.Version(),
+		Height:   height,
+		LastHash: lastHash,
+	}
+	fr.sendMessage(0, TargetPubHash, nm)
+	return nil
+}
+
 func (fr *FormulatorNode) broadcastStatus() error {
 	cp := fr.cs.cn.Provider()
 	height, lastHash, _ := cp.LastStatus()

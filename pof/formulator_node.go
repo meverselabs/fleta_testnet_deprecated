@@ -317,7 +317,6 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 
 			if hasItem {
 				fr.broadcastStatus()
-				fr.tryRequestBlocks()
 			}
 
 			blockTimer.Reset(50 * time.Millisecond)
@@ -443,6 +442,10 @@ func (fr *FormulatorNode) OnConnected(p peer.Peer) {
 	fr.statusLock.Lock()
 	fr.statusMap[p.ID()] = &p2p.Status{}
 	fr.statusLock.Unlock()
+
+	var SenderPublicHash common.PublicHash
+	copy(SenderPublicHash[:], []byte(p.ID()))
+	fr.sendStatusTo(SenderPublicHash)
 }
 
 // OnDisconnected is called when the  peer is disconnected
