@@ -178,7 +178,7 @@ func BytesToPacket(bs []byte) ([]byte, error) {
 		buffer.Write(bs[2:])
 	}
 	wbs := buffer.Bytes()
-	binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
+	binary.LittleEndian.PutUint32(wbs[3:], uint32(len(wbs)-7))
 	return wbs, nil
 }
 

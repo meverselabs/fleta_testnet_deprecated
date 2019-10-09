@@ -218,7 +218,7 @@ func test() error {
 		go func() {
 			//time.Sleep(60 * time.Second)
 
-			if true {
+			if false {
 				go func() {
 					waitMap := map[common.Address]*chan struct{}{}
 					for _, Addr := range Addrs {
