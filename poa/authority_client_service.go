@@ -1,7 +1,6 @@
 package poa
 
 import (
-	"bytes"
 	crand "crypto/rand"
 	"encoding/binary"
 	"net/http"
@@ -13,9 +12,7 @@ import (
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/common/rlog"
-	"github.com/fletaio/fleta_testnet/common/util"
 	"github.com/fletaio/fleta_testnet/core/chain"
-	"github.com/fletaio/fleta_testnet/encoding"
 	"github.com/fletaio/fleta_testnet/service/p2p"
 	"github.com/fletaio/fleta_testnet/service/p2p/peer"
 	"github.com/gorilla/websocket"
@@ -87,18 +84,10 @@ func (ms *ClientService) SendTo(pubhash common.PublicHash, m interface{}) error 
 
 // BroadcastMessage sends a message to all peers
 func (ms *ClientService) BroadcastMessage(m interface{}) error {
-	var buffer bytes.Buffer
-	fc := encoding.Factory("message")
-	t, err := fc.TypeOf(m)
+	data, err := p2p.MessageToPacket(m)
 	if err != nil {
 		return err
 	}
-	buffer.Write(util.Uint16ToBytes(t))
-	enc := encoding.NewEncoder(&buffer)
-	if err := enc.Encode(m); err != nil {
-		return err
-	}
-	data := buffer.Bytes()
 
 	peers := []peer.Peer{}
 	ms.Lock()
