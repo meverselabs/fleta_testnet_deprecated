@@ -383,7 +383,7 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 			if err != nil {
 				return err
 			}
-			data, err := MessageToBytes(&BlockMessage{
+			data, err := MessageToPacket(&BlockMessage{
 				Block: b,
 			})
 			if err != nil {

@@ -473,7 +473,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			if err != nil {
 				return err
 			}
-			data, err := p2p.MessageToBytes(&p2p.BlockMessage{
+			data, err := p2p.MessageToPacket(&p2p.BlockMessage{
 				Block: b,
 			})
 			if err != nil {

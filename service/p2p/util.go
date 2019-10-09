@@ -169,7 +169,7 @@ func BytesToPacket(bs []byte) ([]byte, error) {
 		buffer.Write([]byte{0})
 	}
 	buffer.Write(make([]byte, 4))
-	if len(bs) > 1000 {
+	if doComp {
 		zw := gzip.NewWriter(&buffer)
 		zw.Write(bs[2:])
 		zw.Flush()
@@ -179,5 +179,18 @@ func BytesToPacket(bs []byte) ([]byte, error) {
 	}
 	wbs := buffer.Bytes()
 	binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-7))
+	return wbs, nil
+}
+
+// MessageToPacket returns packet of the message
+func MessageToPacket(m interface{}) ([]byte, error) {
+	bs, err := MessageToBytes(m)
+	if err != nil {
+		return nil, err
+	}
+	wbs, err := BytesToPacket(bs)
+	if err != nil {
+		return nil, err
+	}
 	return wbs, nil
 }

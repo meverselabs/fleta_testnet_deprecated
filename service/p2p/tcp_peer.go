@@ -100,8 +100,7 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		}
 	}
 
-	cps := make([]byte, 1)
-	if _, err := FillBytes(p.conn, cps); err != nil {
+	if cp, _, err := ReadUint8(p.conn); err != nil {
 		return nil, nil, err
 	} else if Len, _, err := ReadUint32(p.conn); err != nil {
 		return nil, nil, err
@@ -113,7 +112,7 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 			return nil, nil, err
 		}
 		var bs []byte
-		if cps[0] == 1 {
+		if cp == 1 {
 			zr, err := gzip.NewReader(bytes.NewReader(zbs))
 			if err != nil {
 				return nil, nil, err

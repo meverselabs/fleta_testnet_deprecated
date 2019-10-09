@@ -23,7 +23,6 @@ type WebsocketPeer struct {
 	name          string
 	guessHeight   uint32
 	writeQueue    *queue.Queue
-	packetQueue   *queue.Queue
 	isClose       bool
 	connectedTime int64
 	pingCount     uint64
@@ -39,7 +38,6 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 		id:            ID,
 		name:          Name,
 		writeQueue:    queue.NewQueue(),
-		packetQueue:   queue.NewQueue(),
 		connectedTime: connectedTime,
 	}
 	conn.EnableWriteCompression(false)
@@ -66,33 +64,17 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 					return
 				}
 			default:
-				hasMessage := false
-				if v := p.writeQueue.Pop(); v != nil {
-					wbs, err := BytesToPacket(v.([]byte))
-					if err != nil {
-						return
-					}
-					if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-						return
-					}
-					if err := p.conn.WriteMessage(websocket.BinaryMessage, wbs); err != nil {
-						return
-					}
-					hasMessage = true
-				}
-				if v := p.packetQueue.Pop(); v != nil {
-					wbs := v.([]byte)
-					if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-						return
-					}
-					if err := p.conn.WriteMessage(websocket.BinaryMessage, wbs); err != nil {
-						return
-					}
-					hasMessage = true
-				}
-				if !hasMessage {
+				v := p.writeQueue.Pop()
+				if v == nil {
 					time.Sleep(50 * time.Millisecond)
 					continue
+				}
+				wbs := v.([]byte)
+				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+					return
+				}
+				if err := p.conn.WriteMessage(websocket.BinaryMessage, wbs); err != nil {
+					return
 				}
 			}
 		}
@@ -122,7 +104,7 @@ func (p *WebsocketPeer) ReadMessageData() (interface{}, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(rb) < 6 {
+	if len(rb) < 7 {
 		return nil, nil, ErrInvalidLength
 	}
 
@@ -178,13 +160,17 @@ func (p *WebsocketPeer) Send(m interface{}) error {
 
 // SendRaw sends bytes to the WebsocketPeer
 func (p *WebsocketPeer) SendRaw(bs []byte) error {
-	p.writeQueue.Push(bs)
+	wbs, err := BytesToPacket(bs)
+	if err != nil {
+		return err
+	}
+	p.writeQueue.Push(wbs)
 	return nil
 }
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *WebsocketPeer) SendPacket(bs []byte) error {
-	p.packetQueue.Push(bs)
+	p.writeQueue.Push(bs)
 	return nil
 }
 

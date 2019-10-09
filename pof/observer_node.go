@@ -364,7 +364,7 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 					if err != nil {
 						return err
 					}
-					data, err := p2p.MessageToBytes(&p2p.BlockMessage{
+					data, err := p2p.MessageToPacket(&p2p.BlockMessage{
 						Block: b,
 					})
 					if err != nil {
@@ -1088,7 +1088,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			if err != nil {
 				return err
 			}
-			data, err := p2p.MessageToBytes(&p2p.BlockMessage{
+			data, err := p2p.MessageToPacket(&p2p.BlockMessage{
 				Block: b,
 			})
 			if err != nil {
