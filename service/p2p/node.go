@@ -144,7 +144,7 @@ func (nd *Node) Run(BindAddress string) {
 		ch := make(chan struct{})
 		workerEnd[i] = &ch
 		go func(pMsgCh *chan *TxMsgItem, pEndCh *chan struct{}) {
-			for {
+			for !nd.isClose {
 				select {
 				case item := <-(*pMsgCh):
 					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
@@ -168,7 +168,7 @@ func (nd *Node) Run(BindAddress string) {
 	go func() {
 		for !nd.isClose {
 			hasMessage := false
-			for {
+			for !nd.isClose {
 				for _, q := range nd.recvQueues {
 					v := q.Pop()
 					if v == nil {
@@ -204,7 +204,7 @@ func (nd *Node) Run(BindAddress string) {
 	go func() {
 		for !nd.isClose {
 			hasMessage := false
-			for {
+			for !nd.isClose {
 				for _, q := range nd.sendQueues {
 					v := q.Pop()
 					if v == nil {

@@ -169,7 +169,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		ch := make(chan struct{})
 		workerEnd[i] = &ch
 		go func(pMsgCh *chan *p2p.TxMsgItem, pEndCh *chan struct{}) {
-			for {
+			for !fr.isClose {
 				select {
 				case item := <-(*pMsgCh):
 					if err := fr.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
@@ -193,7 +193,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go func() {
 		for !fr.isClose {
 			hasMessage := false
-			for {
+			for !fr.isClose {
 				for _, q := range fr.recvQueues {
 					v := q.Pop()
 					if v == nil {
@@ -229,7 +229,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go func() {
 		for !fr.isClose {
 			hasMessage := false
-			for {
+			for !fr.isClose {
 				for _, q := range fr.sendQueues {
 					v := q.Pop()
 					if v == nil {
