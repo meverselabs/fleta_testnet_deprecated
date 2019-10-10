@@ -23,6 +23,7 @@ func (tx *Transfer) Timestamp() uint64 {
 	return tx.Timestamp_
 }
 
+/*
 // Seq returns the sequence of the transaction
 func (tx *Transfer) Seq() uint64 {
 	return tx.Seq_
@@ -37,6 +38,7 @@ func (tx *Transfer) From() common.Address {
 func (tx *Transfer) Fee(loader types.LoaderWrapper) *amount.Amount {
 	return amount.COIN.DivC(10)
 }
+*/
 
 // Validate validates signatures of the transaction
 func (tx *Transfer) Validate(p types.Process, loader types.LoaderWrapper, signers []common.PublicHash) error {

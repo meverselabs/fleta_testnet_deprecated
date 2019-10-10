@@ -1005,7 +1005,8 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		if err != nil {
 			return err
 		}
-		for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
+		// for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
+		for q := 0; q < 10000; q++ {
 			TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{}, []common.PublicHash{}); err != nil {
 				rlog.Println(err)
