@@ -266,6 +266,7 @@ func (cn *Chain) ConnectBlock(b *types.Block) error {
 }
 
 func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) error {
+	defer debug.Start("connectBlockWithContext").Stop()
 	IDMap := map[int]uint8{}
 	for id, idx := range cn.processIndexMap {
 		IDMap[idx] = id

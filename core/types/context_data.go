@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"strconv"
 
+	"github.com/fletaio/fleta_testnet/common/util"
+
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/encoding"
@@ -403,60 +405,58 @@ func (ctd *ContextData) SetProcessData(pid uint8, name []byte, value []byte) {
 // Hash returns the hash value of it
 func (ctd *ContextData) Hash() hash.Hash256 {
 	var buffer bytes.Buffer
-	/*
-		buffer.WriteString("ChainID")
-		buffer.Write([]byte{ctd.loader.ChainID()})
-		buffer.WriteString("ChainName")
-		buffer.WriteString(ctd.loader.Name())
-		buffer.WriteString("ChainVersion")
-		buffer.Write(util.Uint16ToBytes(ctd.loader.Version()))
-		buffer.WriteString("Height")
-		buffer.Write(util.Uint32ToBytes(ctd.loader.TargetHeight()))
-		buffer.WriteString("PrevHash")
-		lastHash := ctd.loader.LastHash()
-		buffer.Write(lastHash[:])
-		buffer.WriteString("SeqMap")
-		buffer.WriteString(encoding.Hash(ctd.SeqMap).String())
-		buffer.WriteString("AccountMap")
-		buffer.WriteString(encoding.Hash(ctd.AccountMap).String())
-		buffer.WriteString("DeletedAccountMap")
-		ctd.DeletedAccountMap.EachAll(func(addr common.Address, acc Account) bool {
-			buffer.Write(addr[:])
-			return true
-		})
-		buffer.WriteString("AccountNameMap")
-		buffer.WriteString(encoding.Hash(ctd.AccountNameMap).String())
-		buffer.WriteString("AccountDataMap")
-		buffer.WriteString(encoding.Hash(ctd.AccountDataMap).String())
-		buffer.WriteString("DeletedAccountDataMap")
-		ctd.DeletedAccountDataMap.EachAll(func(key string, value bool) bool {
-			buffer.WriteString(key)
-			return true
-		})
-		buffer.WriteString("UTXOMap")
-		buffer.WriteString(encoding.Hash(ctd.UTXOMap).String())
-		buffer.WriteString("CreatedUTXOMap")
-		buffer.WriteString(encoding.Hash(ctd.CreatedUTXOMap).String())
-		buffer.WriteString("DeletedUTXOMap")
-		ctd.DeletedUTXOMap.EachAll(func(key uint64, utxo *UTXO) bool {
-			buffer.Write(util.Uint64ToBytes(key))
-			return true
-		})
-		buffer.WriteString("Events")
-		if len(ctd.Events) > 0 {
-			for _, e := range ctd.Events {
-				h := encoding.Hash(e)
-				buffer.Write(h[:])
-			}
+	buffer.WriteString("ChainID")
+	buffer.Write([]byte{ctd.loader.ChainID()})
+	buffer.WriteString("ChainName")
+	buffer.WriteString(ctd.loader.Name())
+	buffer.WriteString("ChainVersion")
+	buffer.Write(util.Uint16ToBytes(ctd.loader.Version()))
+	buffer.WriteString("Height")
+	buffer.Write(util.Uint32ToBytes(ctd.loader.TargetHeight()))
+	buffer.WriteString("PrevHash")
+	lastHash := ctd.loader.LastHash()
+	buffer.Write(lastHash[:])
+	buffer.WriteString("SeqMap")
+	buffer.WriteString(encoding.Hash(ctd.SeqMap).String())
+	buffer.WriteString("AccountMap")
+	buffer.WriteString(encoding.Hash(ctd.AccountMap).String())
+	buffer.WriteString("DeletedAccountMap")
+	ctd.DeletedAccountMap.EachAll(func(addr common.Address, acc Account) bool {
+		buffer.Write(addr[:])
+		return true
+	})
+	buffer.WriteString("AccountNameMap")
+	buffer.WriteString(encoding.Hash(ctd.AccountNameMap).String())
+	buffer.WriteString("AccountDataMap")
+	buffer.WriteString(encoding.Hash(ctd.AccountDataMap).String())
+	buffer.WriteString("DeletedAccountDataMap")
+	ctd.DeletedAccountDataMap.EachAll(func(key string, value bool) bool {
+		buffer.WriteString(key)
+		return true
+	})
+	buffer.WriteString("UTXOMap")
+	buffer.WriteString(encoding.Hash(ctd.UTXOMap).String())
+	buffer.WriteString("CreatedUTXOMap")
+	buffer.WriteString(encoding.Hash(ctd.CreatedUTXOMap).String())
+	buffer.WriteString("DeletedUTXOMap")
+	ctd.DeletedUTXOMap.EachAll(func(key uint64, utxo *UTXO) bool {
+		buffer.Write(util.Uint64ToBytes(key))
+		return true
+	})
+	buffer.WriteString("Events")
+	if len(ctd.Events) > 0 {
+		for _, e := range ctd.Events {
+			h := encoding.Hash(e)
+			buffer.Write(h[:])
 		}
-		buffer.WriteString("ProcessDataMap")
-		buffer.WriteString(encoding.Hash(ctd.ProcessDataMap).String())
-		buffer.WriteString("DeletedProcessDataMap")
-		ctd.DeletedProcessDataMap.EachAll(func(key string, value bool) bool {
-			buffer.WriteString(key)
-			return true
-		})
-	*/
+	}
+	buffer.WriteString("ProcessDataMap")
+	buffer.WriteString(encoding.Hash(ctd.ProcessDataMap).String())
+	buffer.WriteString("DeletedProcessDataMap")
+	ctd.DeletedProcessDataMap.EachAll(func(key string, value bool) bool {
+		buffer.WriteString(key)
+		return true
+	})
 	return hash.DoubleHash(buffer.Bytes())
 }
 

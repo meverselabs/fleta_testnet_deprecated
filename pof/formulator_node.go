@@ -1056,8 +1056,9 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		fr.lastGenTime = time.Now().UnixNano()
 
 		ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
-		if i >= uint32(fr.Config.MaxTransactionsPerBlock)-3 {
-			ExpectedTime = 500*time.Duration(fr.Config.MaxTransactionsPerBlock-3)*time.Millisecond + time.Duration(i-7+1)*100*time.Millisecond
+		Threshold := uint32(fr.Config.MaxTransactionsPerBlock) - 3
+		if i >= Threshold {
+			ExpectedTime = 500*time.Duration(Threshold)*time.Millisecond + time.Duration(i-Threshold+1)*200*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
 		if !bNoDelay && ExpectedTime > PastTime {
