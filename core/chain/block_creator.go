@@ -87,36 +87,40 @@ func (bc *BlockCreator) AddTx(Generator common.Address, tx types.Transaction, si
 // UnsafeAddTx adds transactions without signer validation if signers is not empty
 func (bc *BlockCreator) UnsafeAddTx(Generator common.Address, t uint16, TxHash hash.Hash256, tx types.Transaction, sigs []common.Signature, signers []common.PublicHash) error {
 	pid := uint8(t >> 8)
-	p, err := bc.cn.Process(pid)
-	if err != nil {
-		return err
-	}
+	/*
+		p, err := bc.cn.Process(pid)
+		if err != nil {
+			return err
+		}
+	*/
 	ctw := types.NewContextWrapper(pid, bc.ctx)
 
 	Result := uint8(0)
 
 	sn := ctw.Snapshot()
-	if err := tx.Validate(p, ctw, signers); err != nil {
-		ctw.Revert(sn)
-		return err
-	}
-	if at, is := tx.(AccountTransaction); is {
-		if at.Seq() != ctw.Seq(at.From())+1 {
+	/*
+		if err := tx.Validate(p, ctw, signers); err != nil {
 			ctw.Revert(sn)
 			return err
 		}
-		ctw.AddSeq(at.From())
-		if err := tx.Execute(p, ctw, uint16(len(bc.b.Transactions))); err != nil {
-			Result = 0
+		if at, is := tx.(AccountTransaction); is {
+			if at.Seq() != ctw.Seq(at.From())+1 {
+				ctw.Revert(sn)
+				return err
+			}
+			ctw.AddSeq(at.From())
+			if err := tx.Execute(p, ctw, uint16(len(bc.b.Transactions))); err != nil {
+				Result = 0
+			} else {
+				Result = 1
+			}
 		} else {
-			Result = 1
+			if err := tx.Execute(p, ctw, uint16(len(bc.b.Transactions))); err != nil {
+				ctw.Revert(sn)
+				return err
+			}
 		}
-	} else {
-		if err := tx.Execute(p, ctw, uint16(len(bc.b.Transactions))); err != nil {
-			ctw.Revert(sn)
-			return err
-		}
-	}
+	*/
 	if Has, err := ctw.HasAccount(Generator); err != nil {
 		ctw.Revert(sn)
 		if err == types.ErrDeletedAccount {

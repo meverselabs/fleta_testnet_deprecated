@@ -222,7 +222,7 @@ func main() {
 	cm.Add("formulator", fr)
 
 	waitMap := map[common.Address]*chan struct{}{}
-	if true {
+	if false {
 		go func() {
 			switch cfg.GenKeyHex {
 			case "f732e0551cc030f7946c70d03036214845a7eeb6b3d39266ddb04429c304fb85":

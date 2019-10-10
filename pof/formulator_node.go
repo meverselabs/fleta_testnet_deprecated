@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/process/vault"
+
 	"github.com/fletaio/fleta_testnet/common/debug"
 
 	"github.com/mr-tron/base58/base58"
@@ -966,35 +968,50 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			return err
 		}
 
-		timer := time.NewTimer(200 * time.Millisecond)
+		/*
+				timer := time.NewTimer(200 * time.Millisecond)
 
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
+				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
-		fr.txpool.Lock() // Prevent delaying from TxPool.Push
-		Count := 0
-	TxLoop:
-		for {
-			select {
-			case <-timer.C:
-				break TxLoop
-			default:
-				sn := ctx.Snapshot()
-				item := fr.txpool.UnsafePop(ctx)
-				ctx.Revert(sn)
-				if item == nil {
-					break TxLoop
+				fr.txpool.Lock() // Prevent delaying from TxPool.Push
+				Count := 0
+			TxLoop:
+				for {
+					select {
+					case <-timer.C:
+						break TxLoop
+					default:
+						sn := ctx.Snapshot()
+						item := fr.txpool.UnsafePop(ctx)
+						ctx.Revert(sn)
+						if item == nil {
+							break TxLoop
+						}
+						if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
+							rlog.Println(err)
+							continue
+						}
+						Count++
+						if Count > fr.Config.MaxTransactionsPerBlock {
+							break TxLoop
+						}
+					}
 				}
-				if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
-					rlog.Println(err)
-					continue
-				}
-				Count++
-				if Count > fr.Config.MaxTransactionsPerBlock {
-					break TxLoop
-				}
+				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
+		*/
+		tx := &vault.Transfer{}
+		fc := encoding.Factory("transaction")
+		t, err := fc.TypeOf(tx)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < fr.Config.MaxTransactionsPerBlock; i++ {
+			TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{}, []common.PublicHash{}); err != nil {
+				rlog.Println(err)
+				continue
 			}
 		}
-		fr.txpool.Unlock() // Prevent delaying from TxPool.Push
 
 		b, err := bc.Finalize(Timestamp)
 		if err != nil {
