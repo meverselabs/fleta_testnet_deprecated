@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/common/amount"
+
 	"github.com/fletaio/fleta_testnet/process/vault"
 
 	"github.com/fletaio/fleta_testnet/common/debug"
@@ -999,16 +1001,22 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 				}
 				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
 		*/
-		tx := &vault.Transfer{}
+		tx := &vault.Transfer{
+			Amount: amount.NewCoinAmount(1, 0),
+			To:     common.MustParseAddress("3CUsUpv9v"),
+		}
 		fc := encoding.Factory("transaction")
 		t, err := fc.TypeOf(tx)
 		if err != nil {
 			return err
 		}
+		k, _ := key.NewMemoryKeyFromString("04aeb041bef9f8802080c2d7f06a1cf440d6c0e4c5050fd2bf3fa73942a9128b")
+		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+		sig, _ := k.Sign(TxHash)
+		signer := common.MustParsePublicHash("38dWpxjJY1RwqyzCfhuaTT9YjyyuxJktaWhRBq8XUZ5")
 		// for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
 		for q := 0; q < 10000; q++ {
-			TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
-			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{}, []common.PublicHash{}); err != nil {
+			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
 				rlog.Println(err)
 				continue
 			}
