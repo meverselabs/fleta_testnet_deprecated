@@ -310,6 +310,7 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 }
 
 func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error {
+	p3 := debug.Start("validateTransactionSignatures")
 	TxSigners, err := cn.validateTransactionSignatures(b)
 	if err != nil {
 		return err
@@ -318,6 +319,7 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 	for id, idx := range cn.processIndexMap {
 		IDMap[idx] = id
 	}
+	p3.Stop()
 
 	// BeforeExecuteTransactions
 	for i, p := range cn.processes {
@@ -334,6 +336,7 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 	}
 
 	// Execute Transctions
+	p5 := debug.Start("ExecuteTransctions")
 	for i, tx := range b.Transactions {
 		signers := TxSigners[i]
 		t := b.TransactionTypes[i]
@@ -342,13 +345,22 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 		if err != nil {
 			return err
 		}
+		p50 := debug.Start("ExecuteTransctions.NewContextWrapper")
 		ctw := types.NewContextWrapper(pid, ctx)
+		p50.Stop()
 
+		p51 := debug.Start("ExecuteTransctions.Snapshot")
 		sn := ctw.Snapshot()
+		p51.Stop()
+
+		p52 := debug.Start("ExecuteTransctions.Validate")
 		if err := tx.Validate(p, ctw, signers); err != nil {
 			ctw.Revert(sn)
 			return err
 		}
+		p52.Stop()
+
+		p53 := debug.Start("ExecuteTransctions.Execute")
 		if at, is := tx.(AccountTransaction); is {
 			if at.Seq() != ctw.Seq(at.From())+1 {
 				ctw.Revert(sn)
@@ -370,6 +382,9 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 				return err
 			}
 		}
+		p53.Stop()
+
+		p54 := debug.Start("ExecuteTransctions.CheckDelete")
 		if Has, err := ctw.HasAccount(b.Header.Generator); err != nil {
 			ctw.Revert(sn)
 			if err == types.ErrDeletedAccount {
@@ -381,8 +396,13 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 			ctw.Revert(sn)
 			return ErrCannotDeleteGeneratorAccount
 		}
+		p54.Stop()
+
+		p55 := debug.Start("ExecuteTransctions.Commit")
 		ctw.Commit(sn)
+		p55.Stop()
 	}
+	p5.Stop()
 
 	if ctx.StackSize() > 1 {
 		return ErrDirtyContext

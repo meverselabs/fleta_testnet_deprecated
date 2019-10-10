@@ -70,6 +70,17 @@ func (tx *Transfer) Validate(p types.Process, loader types.LoaderWrapper, signer
 			return err
 		}
 	*/
+	sp := p.(*Vault)
+
+	if tx.Amount.Less(amount.COIN.DivC(10)) {
+		return types.ErrDustAmount
+	}
+
+	if has, err := loader.HasAccount(tx.To); err != nil {
+		return err
+	} else if !has {
+		return types.ErrNotExistAccount
+	}
 
 	fromAcc, err := loader.Account(common.MustParseAddress("3CUsUpv9v"))
 	if err != nil {
@@ -78,25 +89,26 @@ func (tx *Transfer) Validate(p types.Process, loader types.LoaderWrapper, signer
 	if err := fromAcc.Validate(loader, signers); err != nil {
 		return err
 	}
+
+	if err := sp.CheckFeePayableWith(loader, tx, tx.Amount); err != nil {
+		return err
+	}
 	return nil
 }
 
 // Execute updates the context by the transaction
 func (tx *Transfer) Execute(p types.Process, ctw *types.ContextWrapper, index uint16) error {
-	/*
-		sp := p.(*Vault)
+	sp := p.(*Vault)
 
-		return sp.WithFee(ctw, tx, func() error {
-			if err := sp.SubBalance(ctw, tx.From(), tx.Amount); err != nil {
-				return err
-			}
-			if err := sp.AddBalance(ctw, tx.To, tx.Amount); err != nil {
-				return err
-			}
-			return nil
-		})
-	*/
-	return nil
+	return sp.WithFee(ctw, tx, func() error {
+		if err := sp.SubBalance(ctw, tx.From(), tx.Amount); err != nil {
+			return err
+		}
+		if err := sp.AddBalance(ctw, tx.To, tx.Amount); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // MarshalJSON is a marshaler function

@@ -93,7 +93,7 @@ func main() {
 	}()
 	defer cm.CloseAll()
 
-	MaxBlocksPerFormulator := uint32(10)
+	MaxBlocksPerFormulator := uint32(20)
 	ChainID := uint8(0x01)
 	Name := "FLETA Testnet"
 	Version := uint16(0x0001)
