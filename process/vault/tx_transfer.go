@@ -23,16 +23,14 @@ func (tx *Transfer) Timestamp() uint64 {
 	return tx.Timestamp_
 }
 
-/*
 // Seq returns the sequence of the transaction
 func (tx *Transfer) Seq() uint64 {
 	return tx.Seq_
 }
-*/
 
 // From returns the from address of the transaction
 func (tx *Transfer) From() common.Address {
-	return common.MustParseAddress("3CUsUpv9v")
+	return tx.From_
 }
 
 // Fee returns the fee of the transaction
@@ -42,38 +40,13 @@ func (tx *Transfer) Fee(loader types.LoaderWrapper) *amount.Amount {
 
 // Validate validates signatures of the transaction
 func (tx *Transfer) Validate(p types.Process, loader types.LoaderWrapper, signers []common.PublicHash) error {
-	/*
-		p := p.(*Vault)
-
-		if tx.Amount.Less(amount.COIN.DivC(10)) {
-			return types.ErrDustAmount
-		}
-		if tx.Seq() <= loader.Seq(tx.From()) {
-			return types.ErrInvalidSequence
-		}
-
-		if has, err := loader.HasAccount(tx.To); err != nil {
-			return err
-		} else if !has {
-			return types.ErrNotExistAccount
-		}
-
-		fromAcc, err := loader.Account(tx.From())
-		if err != nil {
-			return err
-		}
-		if err := fromAcc.Validate(loader, signers); err != nil {
-			return err
-		}
-
-		if err := sp.CheckFeePayableWith(loader, tx, tx.Amount); err != nil {
-			return err
-		}
-	*/
 	sp := p.(*Vault)
 
 	if tx.Amount.Less(amount.COIN.DivC(10)) {
 		return types.ErrDustAmount
+	}
+	if tx.Seq() <= loader.Seq(tx.From()) {
+		return types.ErrInvalidSequence
 	}
 
 	if has, err := loader.HasAccount(tx.To); err != nil {
@@ -82,7 +55,7 @@ func (tx *Transfer) Validate(p types.Process, loader types.LoaderWrapper, signer
 		return types.ErrNotExistAccount
 	}
 
-	fromAcc, err := loader.Account(common.MustParseAddress("3CUsUpv9v"))
+	fromAcc, err := loader.Account(tx.From())
 	if err != nil {
 		return err
 	}
