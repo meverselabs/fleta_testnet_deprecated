@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/mr-tron/base58/base58"
@@ -36,11 +35,10 @@ type Node struct {
 	requestTimer *RequestTimer
 	requestLock  sync.RWMutex
 	blockQ       *queue.SortedQueue
-	txMsgChans   []*chan *TxMsgItem
-	txMsgIdx     uint64
 	statusMap    map[string]*Status
 	txpool       *txpool.TransactionPool
 	txQ          *queue.ExpireQueue
+	txWaitQ      *queue.Queue
 	recvQueues   []*queue.Queue
 	recvQCond    *sync.Cond
 	sendQueues   []*queue.Queue
@@ -61,6 +59,7 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 		statusMap:    map[string]*Status{},
 		txpool:       txpool.NewTransactionPool(),
 		txQ:          queue.NewExpireQueue(),
+		txWaitQ:      queue.NewQueue(),
 		recvQueues: []*queue.Queue{
 			queue.NewQueue(), //block
 			queue.NewQueue(), //tx
@@ -136,33 +135,42 @@ func (nd *Node) Run(BindAddress string) {
 	if WorkerCount < 1 {
 		WorkerCount = 1
 	}
-	workerEnd := make([]*chan struct{}, WorkerCount)
-	nd.txMsgChans = make([]*chan *TxMsgItem, WorkerCount)
 	for i := 0; i < WorkerCount; i++ {
-		mch := make(chan *TxMsgItem)
-		nd.txMsgChans[i] = &mch
-		ch := make(chan struct{})
-		workerEnd[i] = &ch
-		go func(pMsgCh *chan *TxMsgItem, pEndCh *chan struct{}) {
+		go func() {
 			for !nd.isClose {
-				select {
-				case item := <-(*pMsgCh):
-					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-						//rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
-						(*item.ErrCh) <- err
+				Count := 0
+				for !nd.isClose {
+					v := nd.txWaitQ.Pop()
+					if v == nil {
 						break
 					}
-					//rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
-					(*item.ErrCh) <- nil
+					item := v.(*TxMsgItem)
+					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+							rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+							if len(item.PeerID) > 0 {
+								nd.ms.RemovePeer(item.PeerID)
+							}
+						}
+					}
+					rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 
-					var SenderPublicHash common.PublicHash
-					copy(SenderPublicHash[:], []byte(item.PeerID))
-					nd.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
-				case <-(*pEndCh):
-					return
+					if len(item.PeerID) > 0 {
+						var SenderPublicHash common.PublicHash
+						copy(SenderPublicHash[:], []byte(item.PeerID))
+						nd.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
+					} else {
+						nd.limitCastMessage(1, item.Message)
+					}
+
+					Count++
+					if Count > 500 {
+						break
+					}
 				}
+				time.Sleep(50 * time.Millisecond)
 			}
-		}(&mch, &ch)
+		}()
 	}
 
 	go func() {
@@ -476,17 +484,13 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		nd.statusLock.Unlock()
 		return nil
 	case *TransactionMessage:
-		errCh := make(chan error)
-		idx := atomic.AddUint64(&nd.txMsgIdx, 1) % uint64(len(nd.txMsgChans))
-		(*nd.txMsgChans[idx]) <- &TxMsgItem{
+		if nd.txWaitQ.Size() > 200000 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+		nd.txWaitQ.Push(&TxMsgItem{
 			Message: msg,
 			PeerID:  ID,
-			ErrCh:   &errCh,
-		}
-		err := <-errCh
-		if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
-			return err
-		}
+		})
 		return nil
 	case *PeerListMessage:
 		nd.ms.AddPeerList(msg.Ips, msg.Hashs)
@@ -535,13 +539,12 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 	if err != nil {
 		return err
 	}
-	if err := nd.addTx(t, tx, sigs); err != nil {
-		return err
-	}
-	nd.limitCastMessage(1, &TransactionMessage{
-		TxType: t,
-		Tx:     tx,
-		Sigs:   sigs,
+	nd.txWaitQ.Push(&TxMsgItem{
+		Message: &TransactionMessage{
+			TxType: t,
+			Tx:     tx,
+			Sigs:   sigs,
+		},
 	})
 	return nil
 }
