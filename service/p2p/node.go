@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mr-tron/base58/base58"
-
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
@@ -189,18 +187,20 @@ func (nd *Node) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*RecvMessageItem)
-					if _, is := item.Message.(*TransactionMessage); !is {
-						switch msg := item.Message.(type) {
-						case *RequestMessage:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-						case *StatusMessage:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-						case *BlockMessage:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-						default:
-							log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+					/*
+						if _, is := item.Message.(*TransactionMessage); !is {
+							switch msg := item.Message.(type) {
+							case *RequestMessage:
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *StatusMessage:
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *BlockMessage:
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+							default:
+								log.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+							}
 						}
-					}
+					*/
 					if err := nd.handlePeerMessage(item.PeerID, item.Message); err != nil {
 						nd.ms.RemovePeer(item.PeerID)
 					}

@@ -23,10 +23,12 @@ func (tx *Transfer) Timestamp() uint64 {
 	return tx.Timestamp_
 }
 
+/*
 // Seq returns the sequence of the transaction
 func (tx *Transfer) Seq() uint64 {
 	return tx.Seq_
 }
+*/
 
 // From returns the from address of the transaction
 func (tx *Transfer) From() common.Address {
@@ -45,9 +47,11 @@ func (tx *Transfer) Validate(p types.Process, loader types.LoaderWrapper, signer
 	if tx.Amount.Less(amount.COIN.DivC(10)) {
 		return types.ErrDustAmount
 	}
-	if tx.Seq() <= loader.Seq(tx.From()) {
-		return types.ErrInvalidSequence
-	}
+	/*
+		if tx.Seq() <= loader.Seq(tx.From()) {
+			return types.ErrInvalidSequence
+		}
+	*/
 
 	if has, err := loader.HasAccount(tx.To); err != nil {
 		return err

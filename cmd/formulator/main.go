@@ -211,9 +211,28 @@ func main() {
 		panic(err)
 	}
 
+	switch cfg.GenKeyHex {
+	case "b4f95ba0cf35632e708a820d9cfb61a16370baeb8fb3dedd3de5e88525e9765f":
+		Addrs = Addrs[:5000]
+		//Addrs = Addrs[:7500]
+	case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
+		Addrs = Addrs[5000:10000]
+		//Addrs = Addrs[7500:15000]
+	case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
+		Addrs = Addrs[10000:15000]
+		//Addrs = Addrs[15000:22500]
+	case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
+		Addrs = Addrs[15000:20000]
+		//Addrs = Addrs[22500:30000]
+	default:
+		Addrs = []common.Address{}
+		//Addrs = Addrs[0:1]
+	}
+
 	fr := pof.NewFormulatorNode(&pof.FormulatorConfig{
 		Formulator:              common.MustParseAddress(cfg.Formulator),
 		MaxTransactionsPerBlock: 5000,
+		Addrs:                   Addrs,
 	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
 	if err := fr.Init(); err != nil {
 		panic(err)
@@ -224,24 +243,6 @@ func main() {
 	waitMap := map[common.Address]*chan struct{}{}
 	if false {
 		go func() {
-			switch cfg.GenKeyHex {
-			case "f732e0551cc030f7946c70d03036214845a7eeb6b3d39266ddb04429c304fb85":
-				Addrs = Addrs[:7500]
-				//Addrs = Addrs[:1]
-			case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-				Addrs = Addrs[7500:15000]
-				//Addrs = Addrs[50:51]
-			case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-				Addrs = Addrs[15000:22500]
-				//Addrs = Addrs[100:101]
-			case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
-				Addrs = Addrs[22500:30000]
-				//Addrs = Addrs[150:151]
-			default:
-				Addrs = []common.Address{}
-				//Addrs = Addrs[0:1]
-			}
-
 			for _, Addr := range Addrs {
 				waitMap[Addr] = ws.addAddress(Addr)
 			}

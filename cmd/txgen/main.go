@@ -207,7 +207,7 @@ func main() {
 	cm.Add("node", nd)
 
 	waitMap := map[common.Address]*chan struct{}{}
-	if true {
+	if false {
 		go func() {
 			switch cfg.NodeKeyHex {
 			case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":

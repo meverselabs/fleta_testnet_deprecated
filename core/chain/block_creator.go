@@ -96,12 +96,10 @@ func (bc *BlockCreator) UnsafeAddTx(Generator common.Address, t uint16, TxHash h
 	Result := uint8(0)
 
 	sn := ctw.Snapshot()
-	snv := ctw.Snapshot()
 	if err := tx.Validate(p, ctw, signers); err != nil {
 		ctw.Revert(sn)
 		return err
 	}
-	ctw.Revert(snv)
 
 	if at, is := tx.(AccountTransaction); is {
 		if at.Seq() != ctw.Seq(at.From())+1 {

@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/common/debug"
+	"github.com/fletaio/fleta_testnet/common/amount"
+	"github.com/fletaio/fleta_testnet/process/vault"
 
-	"github.com/mr-tron/base58/base58"
+	"github.com/fletaio/fleta_testnet/common/debug"
 
 	"github.com/bluele/gcache"
 
@@ -31,6 +32,7 @@ import (
 type FormulatorConfig struct {
 	Formulator              common.Address
 	MaxTransactionsPerBlock int
+	Addrs                   []common.Address
 }
 
 // FormulatorNode procudes a block by the consensus
@@ -68,6 +70,11 @@ type FormulatorNode struct {
 	closeLock            sync.RWMutex
 	isClose              bool
 	cache                gcache.Cache
+
+	//TEMP
+	Txs      []types.Transaction
+	Sigs     []common.Signature
+	TxHashes []hash.Hash256
 }
 
 // NewFormulatorNode returns a FormulatorNode
@@ -116,6 +123,8 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 	*/
 	fr.txQ.AddHandler(fr)
 	rlog.SetRLogAddress("fr:" + Config.Formulator.String())
+
+	fr.temp() // TEMP
 	return fr
 }
 
@@ -222,34 +231,38 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					if v := rq.Pop(); v != nil {
 						hasMessage = true
 						item := v.(*p2p.RecvMessageItem)
-						if _, is := item.Message.(*p2p.TransactionMessage); !is {
-							switch msg := item.Message.(type) {
-							case *p2p.RequestMessage:
-								rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-							case *p2p.StatusMessage:
-								rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-							case *p2p.BlockMessage:
-								rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-							default:
-								rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+						/*
+							if _, is := item.Message.(*p2p.TransactionMessage); !is {
+								switch msg := item.Message.(type) {
+								case *p2p.RequestMessage:
+									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								case *p2p.StatusMessage:
+									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								case *p2p.BlockMessage:
+									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+								default:
+									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+								}
 							}
-						}
+						*/
 						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
 						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 							fr.nm.RemovePeer(item.PeerID)
 						}
-						if _, is := item.Message.(*p2p.TransactionMessage); !is {
-							switch msg := item.Message.(type) {
-							case *p2p.RequestMessage:
-								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-							case *p2p.StatusMessage:
-								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-							case *p2p.BlockMessage:
-								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-							default:
-								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+						/*
+							if _, is := item.Message.(*p2p.TransactionMessage); !is {
+								switch msg := item.Message.(type) {
+								case *p2p.RequestMessage:
+									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								case *p2p.StatusMessage:
+									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+								case *p2p.BlockMessage:
+									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+								default:
+									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+								}
 							}
-						}
+						*/
 						p.Stop()
 					}
 					sq := fr.sendQueues[i]
@@ -258,25 +271,29 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						item := v.(*p2p.SendMessageItem)
 						if len(item.Packet) > 0 {
 							p := debug.Start("BlockMessage.Send")
-							rlog.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
+							/*
+								rlog.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
+							*/
 							if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
 								fr.nm.RemovePeer(string(item.Target[:]))
 							}
 							p.Stop()
 						} else {
 							p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Send")
-							if _, is := item.Message.(*p2p.TransactionMessage); !is {
-								switch msg := item.Message.(type) {
-								case *p2p.RequestMessage:
-									rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-								case *p2p.StatusMessage:
-									rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-								case *p2p.BlockMessage:
-									rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-								default:
-									rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+							/*
+								if _, is := item.Message.(*p2p.TransactionMessage); !is {
+									switch msg := item.Message.(type) {
+									case *p2p.RequestMessage:
+										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+									case *p2p.StatusMessage:
+										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+									case *p2p.BlockMessage:
+										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+									default:
+										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
+									}
 								}
-							}
+							*/
 							var EmptyHash common.PublicHash
 							if bytes.Equal(item.Target[:], EmptyHash[:]) {
 								if item.Limit > 0 {
@@ -480,12 +497,18 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 func (fr *FormulatorNode) onObserverRecv(ID string, m interface{}) error {
-	rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
+	/*
+		rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
+	*/
 	if err := fr.handleObserverMessage(ID, m, 0); err != nil {
-		rlog.Println("ObErrorMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), err)
+		/*
+			rlog.Println("ObErrorMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), err)
+		*/
 		return err
 	}
-	rlog.Println("ObHandleMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
+	/*
+		rlog.Println("ObHandleMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
+	*/
 	return nil
 }
 
@@ -944,6 +967,38 @@ func (fr *FormulatorNode) cleanPool(b *types.Block) {
 	}
 }
 
+func (fr *FormulatorNode) temp() {
+	fc := encoding.Factory("transaction")
+	t, err := fc.TypeOf(&vault.Transfer{})
+	if err != nil {
+		panic(err)
+	}
+	key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
+	Txs := []types.Transaction{}
+	Sigs := []common.Signature{}
+	TxHashes := []hash.Hash256{}
+	for _, Addr := range fr.Config.Addrs {
+		tx := &vault.Transfer{
+			Timestamp_: uint64(time.Now().UnixNano()),
+			From_:      Addr,
+			To:         Addr,
+			Amount:     amount.NewCoinAmount(1, 0),
+		}
+		sig, err := key.Sign(chain.HashTransaction(fr.cs.cn.Provider().ChainID(), tx))
+		if err != nil {
+			panic(err)
+		}
+		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+
+		Txs = append(Txs, tx)
+		Sigs = append(Sigs, sig)
+		TxHashes = append(TxHashes, TxHash)
+	}
+	fr.Txs = Txs
+	fr.Sigs = Sigs
+	fr.TxHashes = TxHashes
+}
+
 func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
 
@@ -968,21 +1023,12 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		bNoDelay = true
 	}
 
-	/*
-		tx := &vault.Transfer{
-			Amount: amount.NewCoinAmount(1, 0),
-			To:     common.MustParseAddress("3CUsUpv9v"),
-		}
-		fc := encoding.Factory("transaction")
-		t, err := fc.TypeOf(tx)
-		if err != nil {
-			return err
-		}
-		k, _ := key.NewMemoryKeyFromString("04aeb041bef9f8802080c2d7f06a1cf440d6c0e4c5050fd2bf3fa73942a9128b")
-		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
-		sig, _ := k.Sign(TxHash)
-		signer := common.MustParsePublicHash("38dWpxjJY1RwqyzCfhuaTT9YjyyuxJktaWhRBq8XUZ5")
-	*/
+	fc := encoding.Factory("transaction")
+	t, err := fc.TypeOf(&vault.Transfer{})
+	if err != nil {
+		panic(err)
+	}
+	signer := common.MustParsePublicHash("2RqGkxiHZ4NopN9QxKgw93RuSrxX2NnLjv1q1aFDdV9")
 
 	var lastHeader *types.Header
 	ctx := fr.cs.ct.NewContext()
@@ -1015,45 +1061,47 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			return err
 		}
 
-		timer := time.NewTimer(200 * time.Millisecond)
+		/*
+				timer := time.NewTimer(200 * time.Millisecond)
 
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
+				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
-		fr.txpool.Lock() // Prevent delaying from TxPool.Push
-		Count := 0
-	TxLoop:
-		for {
-			select {
-			case <-timer.C:
-				break TxLoop
-			default:
-				sn := ctx.Snapshot()
-				item := fr.txpool.UnsafePop(ctx)
-				ctx.Revert(sn)
-				if item == nil {
-					break TxLoop
+				fr.txpool.Lock() // Prevent delaying from TxPool.Push
+				Count := 0
+			TxLoop:
+				for {
+					select {
+					case <-timer.C:
+						break TxLoop
+					default:
+						sn := ctx.Snapshot()
+						item := fr.txpool.UnsafePop(ctx)
+						ctx.Revert(sn)
+						if item == nil {
+							break TxLoop
+						}
+						if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
+							rlog.Println(err)
+							continue
+						}
+						Count++
+						if Count > fr.Config.MaxTransactionsPerBlock {
+							break TxLoop
+						}
+					}
 				}
-				if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
-					rlog.Println(err)
-					continue
-				}
-				Count++
-				if Count > fr.Config.MaxTransactionsPerBlock {
-					break TxLoop
-				}
+				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
+		*/
+
+		for i := range fr.Config.Addrs {
+			tx := fr.Txs[i]
+			TxHash := fr.TxHashes[i]
+			sig := fr.Sigs[i]
+			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
+				rlog.Println(err)
+				continue
 			}
 		}
-		fr.txpool.Unlock() // Prevent delaying from TxPool.Push
-
-		/*
-			//for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
-			for q := 0; q < 5000; q++ {
-				if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
-					rlog.Println(err)
-					continue
-				}
-			}
-		*/
 
 		b, err := bc.Finalize(Timestamp)
 		if err != nil {

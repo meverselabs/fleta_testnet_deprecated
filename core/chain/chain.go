@@ -344,100 +344,11 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 		ctw := types.NewContextWrapper(pid, ctx)
 
 		sn := ctw.Snapshot()
-		snv := ctw.Snapshot()
 		if err := tx.Validate(p, ctw, signers); err != nil {
 			ctw.Revert(sn)
 			return err
 		}
-		ctw.Revert(snv)
 
-		if at, is := tx.(AccountTransaction); is {
-			if at.Seq() != ctw.Seq(at.From())+1 {
-				ctw.Revert(sn)
-				return err
-			}
-			ctw.AddSeq(at.From())
-			Result := uint8(0)
-			if err := tx.Execute(p, ctw, uint16(i)); err != nil {
-				Result = 0
-			} else {
-				Result = 1
-			}
-			if Result != b.TransactionResults[i] {
-				return ErrInvalidResult
-			}
-		} else {
-			if err := tx.Execute(p, ctw, uint16(i)); err != nil {
-				ctw.Revert(sn)
-				return err
-			}
-		}
-
-		if Has, err := ctw.HasAccount(b.Header.Generator); err != nil {
-			ctw.Revert(sn)
-			if err == types.ErrDeletedAccount {
-				return ErrCannotDeleteGeneratorAccount
-			} else {
-				return err
-			}
-		} else if !Has {
-			ctw.Revert(sn)
-			return ErrCannotDeleteGeneratorAccount
-		}
-		ctw.Commit(sn)
-	}
-
-	if ctx.StackSize() > 1 {
-		return ErrDirtyContext
-	}
-
-	// AfterExecuteTransactions
-	for i, p := range cn.processes {
-		if err := p.AfterExecuteTransactions(b, types.NewContextWrapper(IDMap[i], ctx)); err != nil {
-			return err
-		} else if ctx.StackSize() > 1 {
-			return ErrDirtyContext
-		}
-	}
-	if err := cn.app.AfterExecuteTransactions(b, types.NewContextWrapper(255, ctx)); err != nil {
-		return err
-	} else if ctx.StackSize() > 1 {
-		return ErrDirtyContext
-	}
-	return nil
-}
-
-func (cn *Chain) executeBlockOnContextWithoutValidate(b *types.Block, ctx *types.Context) error {
-	IDMap := map[int]uint8{}
-	for id, idx := range cn.processIndexMap {
-		IDMap[idx] = id
-	}
-
-	// BeforeExecuteTransactions
-	for i, p := range cn.processes {
-		if err := p.BeforeExecuteTransactions(types.NewContextWrapper(IDMap[i], ctx)); err != nil {
-			return err
-		} else if ctx.StackSize() > 1 {
-			return ErrDirtyContext
-		}
-	}
-	if err := cn.app.BeforeExecuteTransactions(types.NewContextWrapper(255, ctx)); err != nil {
-		return err
-	} else if ctx.StackSize() > 1 {
-		return ErrDirtyContext
-	}
-
-	// Execute Transctions
-	for i, tx := range b.Transactions {
-		t := b.TransactionTypes[i]
-		pid := uint8(t >> 8)
-		p, err := cn.Process(pid)
-		if err != nil {
-			return err
-		}
-		ctw := types.NewContextWrapper(pid, ctx)
-
-		sn := ctw.Snapshot()
 		if at, is := tx.(AccountTransaction); is {
 			if at.Seq() != ctw.Seq(at.From())+1 {
 				ctw.Revert(sn)
