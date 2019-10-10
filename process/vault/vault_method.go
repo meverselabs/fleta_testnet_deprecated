@@ -132,11 +132,13 @@ func (p *Vault) CheckFeePayable(loader types.Loader, tx FeeTransaction) error {
 func (p *Vault) CheckFeePayableWith(loader types.Loader, tx FeeTransaction, am *amount.Amount) error {
 	lw := types.NewLoaderWrapper(p.pid, loader)
 
-	if has, err := lw.HasAccount(tx.From()); err != nil {
-		return err
-	} else if !has {
-		return types.ErrNotExistAccount
-	}
+	/*
+		if has, err := lw.HasAccount(tx.From()); err != nil {
+			return err
+		} else if !has {
+			return types.ErrNotExistAccount
+		}
+	*/
 
 	fee := tx.Fee(lw)
 	if am != nil {
