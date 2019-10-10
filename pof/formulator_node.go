@@ -465,6 +465,8 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 func (fr *FormulatorNode) onObserverRecv(ID string, m interface{}) error {
+	rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
+
 	if err := fr.handleObserverMessage(ID, m, 0); err != nil {
 		return err
 	}
@@ -1053,8 +1055,8 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		fr.lastGenTime = time.Now().UnixNano()
 
 		ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
-		if i >= 7 {
-			ExpectedTime = 3500*time.Millisecond + time.Duration(i-7+1)*100*time.Millisecond
+		if i >= uint32(fr.Config.MaxTransactionsPerBlock)-3 {
+			ExpectedTime = 500*time.Duration(fr.Config.MaxTransactionsPerBlock-3)*time.Millisecond + time.Duration(i-7+1)*100*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
 		if !bNoDelay && ExpectedTime > PastTime {

@@ -1,0 +1,20 @@
+ObserverKeys = [
+	"4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ",
+	"4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR",
+	"37mZ3Gt3yW1TU3tt9zPF9hstUHedoXLsfXi8RTPp8Ze",
+	"4c3FinyoBt1BNwv17tHc5gQKVSvu785rM7zq1R58hhL",
+	"3BeyVF3kiCgYZRdPwC5D2C5xddrzmhB8kSaPzjSi59S",
+]
+Port = 41000
+APIPort = 48000
+StoreRoot = "./ndata"
+BackendVersion = 1
+RLogHost = ""
+RLogPath = ""
+UseRLog = false
+
+[SeedNodeMap]
+3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf = "80.240.29.147:41000"
+3EjA1hKkfYZ4KL1c4f67CfaNwb9fCqUneiYkyQEhsGi = "78.141.205.254:41000"
+314AUADxjj7nWjeNpR8XEoAh4DdX3ArNHaipPGMFQ4u = "155.138.214.253:41000"
+3n8QNWd7M839ouauhdHvmgmk4NsLj4qGM6tpfoaLNxc = "45.77.211.61:41000"
