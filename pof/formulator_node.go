@@ -926,7 +926,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	fr.lastContextes = []*types.Context{}
 
 	start := time.Now().UnixNano()
-	Now := uint64(time.Now().UnixNano())
+	StartTime := uint64(time.Now().UnixNano())
 	StartBlockTime := Now
 	bNoDelay := false
 
@@ -967,7 +967,8 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		}
 
 		Timestamp := StartBlockTime
-		if bNoDelay || Timestamp > Now+uint64(3*time.Second) {
+		log.Println("StartBlockTime", StartBlockTime, bNoDelay, Timestamp > StartTime+uint64(3*time.Second), StartTime, Timestamp, StartTime+uint64(3*time.Second))
+		if bNoDelay || Timestamp > StartTime+uint64(3*time.Second) {
 			Timestamp += uint64(i) * uint64(time.Millisecond)
 		} else {
 			Timestamp += uint64(i) * uint64(500*time.Millisecond)
