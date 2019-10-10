@@ -106,9 +106,14 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 	}
 	fr.ms = NewFormulatorNodeMesh(key, NetAddressMap, fr)
 	fr.nm = p2p.NewNodeMesh(fr.cs.cn.Provider().ChainID(), ndkey, SeedNodeMap, fr, peerStorePath)
-	fr.txQ.AddGroup(60 * time.Second)
-	fr.txQ.AddGroup(600 * time.Second)
-	fr.txQ.AddGroup(3600 * time.Second)
+	fr.txQ.AddGroup(5 * time.Second)
+	fr.txQ.AddGroup(10 * time.Second)
+	fr.txQ.AddGroup(30 * time.Second)
+	/*
+		fr.txQ.AddGroup(60 * time.Second)
+		fr.txQ.AddGroup(600 * time.Second)
+		fr.txQ.AddGroup(3600 * time.Second)
+	*/
 	fr.txQ.AddHandler(fr)
 	rlog.SetRLogAddress("fr:" + Config.Formulator.String())
 	return fr
@@ -735,6 +740,10 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 
 			fr.Lock()
 			defer fr.Unlock()
+
+			if msg.TargetHeight <= cp.Height() {
+				return nil
+			}
 
 			return fr.genBlock(ID, req)
 		}(msg)

@@ -74,9 +74,14 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 	}
 	nd.ms = NewNodeMesh(cn.Provider().ChainID(), key, SeedNodeMap, nd, peerStorePath)
 	nd.requestTimer = NewRequestTimer(nd)
-	nd.txQ.AddGroup(60 * time.Second)
-	nd.txQ.AddGroup(600 * time.Second)
-	nd.txQ.AddGroup(3600 * time.Second)
+	nd.txQ.AddGroup(5 * time.Second)
+	nd.txQ.AddGroup(10 * time.Second)
+	nd.txQ.AddGroup(30 * time.Second)
+	/*
+		nd.txQ.AddGroup(60 * time.Second)
+		nd.txQ.AddGroup(600 * time.Second)
+		nd.txQ.AddGroup(3600 * time.Second)
+	*/
 	nd.txQ.AddHandler(nd)
 	rlog.SetRLogAddress("nd:" + nd.myPublicHash.String())
 	return nd
