@@ -1016,7 +1016,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
 		*/
 		//for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
-		for q := 0; q < 3500; q++ {
+		for q := 0; q < 5000; q++ {
 			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
 				rlog.Println(err)
 				continue
