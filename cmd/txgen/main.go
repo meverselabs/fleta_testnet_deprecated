@@ -206,30 +206,31 @@ func main() {
 	cm.RemoveAll()
 	cm.Add("node", nd)
 
+	waitMap := map[common.Address]*chan struct{}{}
 	if true {
-		waitMap := map[common.Address]*chan struct{}{}
-		for _, Addr := range Addrs {
-			waitMap[Addr] = ws.addAddress(Addr)
-		}
-
-		switch cfg.NodeKeyHex {
-		case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
-			Addrs = Addrs[:7500]
-			//Addrs = Addrs[:1]
-		case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
-			Addrs = Addrs[7500:15000]
-			//Addrs = Addrs[50:51]
-		case "4bc61ab268197c465d471d67618a3bf385651a93ed5011b8db08f5dfdca43c1d":
-			Addrs = Addrs[15000:22500]
-			//Addrs = Addrs[100:101]
-		case "bfe9f217f31f52a8e3e975c415d297ff201a4c4abfbcb921eb9013b0c21397f4":
-			Addrs = Addrs[22500:30000]
-			//Addrs = Addrs[150:151]
-		default:
-			Addrs = []common.Address{}
-		}
-
 		go func() {
+			switch cfg.NodeKeyHex {
+			case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
+				Addrs = Addrs[:7500]
+				//Addrs = Addrs[:1]
+			case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
+				Addrs = Addrs[7500:15000]
+				//Addrs = Addrs[50:51]
+			case "4bc61ab268197c465d471d67618a3bf385651a93ed5011b8db08f5dfdca43c1d":
+				Addrs = Addrs[15000:22500]
+				//Addrs = Addrs[100:101]
+			case "bfe9f217f31f52a8e3e975c415d297ff201a4c4abfbcb921eb9013b0c21397f4":
+				Addrs = Addrs[22500:30000]
+				//Addrs = Addrs[150:151]
+			default:
+				Addrs = []common.Address{}
+				//Addrs = Addrs[0:1]
+			}
+
+			for _, Addr := range Addrs {
+				waitMap[Addr] = ws.addAddress(Addr)
+			}
+
 			for _, v := range Addrs {
 				go func(Addr common.Address) {
 					for {
@@ -239,7 +240,7 @@ func main() {
 						key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
 						log.Println(Addr.String(), "Start Transaction", Seq)
 
-						for i := 0; i < 1; i++ {
+						for i := 0; i < 2; i++ {
 							Seq++
 							tx := &vault.Transfer{
 								Timestamp_: uint64(time.Now().UnixNano()),
@@ -253,7 +254,7 @@ func main() {
 								panic(err)
 							}
 							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
-								panic(err)
+								//panic(err)
 							}
 							time.Sleep(100 * time.Millisecond)
 						}
@@ -293,32 +294,33 @@ func main() {
 				}(v)
 			}
 		}()
+	}
 
-		go func() {
-			for {
-				b := <-ws.blockCh
-				for i, t := range b.Transactions {
-					res := b.TransactionResults[i]
-					if res == 1 {
-						if tx, is := t.(chain.AccountTransaction); is {
-							CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
-							switch tx.(type) {
-							case (*vault.IssueAccount):
-								log.Println("Created", CreatedAddr.String())
-							//case (*vault.Transfer):
-							//	log.Println("Transfered", tx.(*vault.Transfer).To)
-							default:
-								pCh, has := waitMap[tx.From()]
-								if has {
-									(*pCh) <- struct{}{}
-								}
+	go func() {
+		for {
+			b := <-ws.blockCh
+			for i, t := range b.Transactions {
+				res := b.TransactionResults[i]
+				if res == 1 {
+					if tx, is := t.(chain.AccountTransaction); is {
+
+						CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
+						switch tx.(type) {
+						case (*vault.IssueAccount):
+							log.Println("Created", CreatedAddr.String())
+						//case (*vault.Transfer):
+						//	log.Println("Transfered", tx.(*vault.Transfer).To)
+						default:
+							pCh, has := waitMap[tx.From()]
+							if has {
+								(*pCh) <- struct{}{}
 							}
 						}
 					}
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	go nd.Run(":" + strconv.Itoa(cfg.Port))
 	go as.Run(":" + strconv.Itoa(cfg.APIPort))

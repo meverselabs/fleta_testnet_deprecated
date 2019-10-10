@@ -8,10 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/common/amount"
-
-	"github.com/fletaio/fleta_testnet/process/vault"
-
 	"github.com/fletaio/fleta_testnet/common/debug"
 
 	"github.com/mr-tron/base58/base58"
@@ -236,6 +232,18 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
 						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 							fr.nm.RemovePeer(item.PeerID)
+						}
+						if _, is := item.Message.(*p2p.TransactionMessage); !is {
+							switch msg := item.Message.(type) {
+							case *p2p.RequestMessage:
+								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *p2p.StatusMessage:
+								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *p2p.BlockMessage:
+								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+							default:
+								rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
+							}
 						}
 						p.Stop()
 					}
@@ -466,10 +474,11 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 
 func (fr *FormulatorNode) onObserverRecv(ID string, m interface{}) error {
 	rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
-
 	if err := fr.handleObserverMessage(ID, m, 0); err != nil {
+		rlog.Println("ObErrorMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), err)
 		return err
 	}
+	rlog.Println("ObHandleMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
 	return nil
 }
 
@@ -717,11 +726,11 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		go func(req *BlockReqMessage) error {
 			wg.Done()
 
-			fr.Lock()
-			defer fr.Unlock()
-
 			fr.genLock.Lock()
 			defer fr.genLock.Unlock()
+
+			fr.Lock()
+			defer fr.Unlock()
 
 			return fr.genBlock(ID, req)
 		}(msg)
@@ -942,19 +951,21 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		bNoDelay = true
 	}
 
-	tx := &vault.Transfer{
-		Amount: amount.NewCoinAmount(1, 0),
-		To:     common.MustParseAddress("3CUsUpv9v"),
-	}
-	fc := encoding.Factory("transaction")
-	t, err := fc.TypeOf(tx)
-	if err != nil {
-		return err
-	}
-	k, _ := key.NewMemoryKeyFromString("04aeb041bef9f8802080c2d7f06a1cf440d6c0e4c5050fd2bf3fa73942a9128b")
-	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
-	sig, _ := k.Sign(TxHash)
-	signer := common.MustParsePublicHash("38dWpxjJY1RwqyzCfhuaTT9YjyyuxJktaWhRBq8XUZ5")
+	/*
+		tx := &vault.Transfer{
+			Amount: amount.NewCoinAmount(1, 0),
+			To:     common.MustParseAddress("3CUsUpv9v"),
+		}
+		fc := encoding.Factory("transaction")
+		t, err := fc.TypeOf(tx)
+		if err != nil {
+			return err
+		}
+		k, _ := key.NewMemoryKeyFromString("04aeb041bef9f8802080c2d7f06a1cf440d6c0e4c5050fd2bf3fa73942a9128b")
+		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+		sig, _ := k.Sign(TxHash)
+		signer := common.MustParsePublicHash("38dWpxjJY1RwqyzCfhuaTT9YjyyuxJktaWhRBq8XUZ5")
+	*/
 
 	var lastHeader *types.Header
 	ctx := fr.cs.ct.NewContext()
@@ -987,44 +998,45 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			return err
 		}
 
-		/*
-				timer := time.NewTimer(200 * time.Millisecond)
+		timer := time.NewTimer(200 * time.Millisecond)
 
-				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
+		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
-				fr.txpool.Lock() // Prevent delaying from TxPool.Push
-				Count := 0
-			TxLoop:
-				for {
-					select {
-					case <-timer.C:
-						break TxLoop
-					default:
-						sn := ctx.Snapshot()
-						item := fr.txpool.UnsafePop(ctx)
-						ctx.Revert(sn)
-						if item == nil {
-							break TxLoop
-						}
-						if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
-							rlog.Println(err)
-							continue
-						}
-						Count++
-						if Count > fr.Config.MaxTransactionsPerBlock {
-							break TxLoop
-						}
-					}
+		fr.txpool.Lock() // Prevent delaying from TxPool.Push
+		Count := 0
+	TxLoop:
+		for {
+			select {
+			case <-timer.C:
+				break TxLoop
+			default:
+				sn := ctx.Snapshot()
+				item := fr.txpool.UnsafePop(ctx)
+				ctx.Revert(sn)
+				if item == nil {
+					break TxLoop
 				}
-				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
-		*/
-		//for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
-		for q := 0; q < 5000; q++ {
-			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
-				rlog.Println(err)
-				continue
+				if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
+					rlog.Println(err)
+					continue
+				}
+				Count++
+				if Count > fr.Config.MaxTransactionsPerBlock {
+					break TxLoop
+				}
 			}
 		}
+		fr.txpool.Unlock() // Prevent delaying from TxPool.Push
+
+		/*
+			//for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
+			for q := 0; q < 5000; q++ {
+				if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
+					rlog.Println(err)
+					continue
+				}
+			}
+		*/
 
 		b, err := bc.Finalize(Timestamp)
 		if err != nil {
