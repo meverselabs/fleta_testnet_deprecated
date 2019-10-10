@@ -927,7 +927,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 
 	start := time.Now().UnixNano()
 	StartTime := uint64(time.Now().UnixNano())
-	StartBlockTime := Now
+	StartBlockTime := StartTime
 	bNoDelay := false
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator
