@@ -38,7 +38,12 @@ func (p *Profiler) Result() {
 	defer p.Unlock()
 
 	for name, t := range p.PointTimeMap {
-		log.Println(name, time.Duration(t))
+		cnt := int64(p.PointCountMap[name])
+		if cnt > 0 {
+			log.Println(name, time.Duration(t), cnt, time.Duration(t/cnt))
+		} else {
+			log.Println(name, time.Duration(t), cnt)
+		}
 	}
 	p.PointTimeMap = map[string]int64{}
 	p.PointCountMap = map[string]int{}

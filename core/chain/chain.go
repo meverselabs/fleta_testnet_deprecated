@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/fletaio/fleta_testnet/common/debug"
+
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/core/types"
@@ -247,14 +249,19 @@ func (cn *Chain) ConnectBlock(b *types.Block) error {
 	if err := cn.validateHeader(&b.Header); err != nil {
 		return err
 	}
+
 	if err := cn.consensus.ValidateSignature(&b.Header, b.Signatures); err != nil {
 		return err
 	}
 
+	p3 := debug.Start("executeBlockOnContext")
 	ctx := types.NewContext(cn.store)
 	if err := cn.executeBlockOnContext(b, ctx); err != nil {
+		p3.Stop()
 		return err
 	}
+	p3.Stop()
+
 	return cn.connectBlockWithContext(b, ctx)
 }
 

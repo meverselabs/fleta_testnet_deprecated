@@ -1011,10 +1011,8 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				ob.fs.UpdateGuessHeight(ob.round.MinRoundVoteAck.Formulator, nm.TargetHeight)
 
 				if NextTop != nil {
-					ob.fs.SendTo(NextTop.Address, &p2p.StatusMessage{
-						Version:  b.Header.Version,
-						Height:   b.Header.Height,
-						LastHash: bh,
+					ob.fs.SendTo(NextTop.Address, &p2p.BlockMessage{
+						Block: b,
 					})
 				}
 			} else {

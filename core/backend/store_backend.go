@@ -18,7 +18,7 @@ type StoreWriter interface {
 	Delete(key []byte) error
 }
 
-type CreateBackend func(Paht string) (StoreBackend, error)
+type CreateBackend func(Path string) (StoreBackend, error)
 
 var gDriverMap = map[string]CreateBackend{}
 
