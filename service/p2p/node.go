@@ -38,7 +38,7 @@ type Node struct {
 	statusMap    map[string]*Status
 	txpool       *txpool.TransactionPool
 	txQ          *queue.ExpireQueue
-	txWaitQ      *queue.Queue
+	txWaitQ      *queue.LinkedQueue
 	recvQueues   []*queue.Queue
 	recvQCond    *sync.Cond
 	sendQueues   []*queue.Queue
@@ -59,7 +59,7 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 		statusMap:    map[string]*Status{},
 		txpool:       txpool.NewTransactionPool(),
 		txQ:          queue.NewExpireQueue(),
-		txWaitQ:      queue.NewQueue(),
+		txWaitQ:      queue.NewLinkedQueue(),
 		recvQueues: []*queue.Queue{
 			queue.NewQueue(), //block
 			queue.NewQueue(), //tx
@@ -145,7 +145,7 @@ func (nd *Node) Run(BindAddress string) {
 						break
 					}
 					item := v.(*TxMsgItem)
-					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+					if err := nd.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
 						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
 							//rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
 							if len(item.PeerID) > 0 {
@@ -489,7 +489,9 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 				return txpool.ErrTransactionPoolOverflowed
 			}
 		*/
-		nd.txWaitQ.Push(&TxMsgItem{
+		TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), msg.TxType, msg.Tx)
+		nd.txWaitQ.Push(TxHash, &TxMsgItem{
+			TxHash:  TxHash,
 			Message: msg,
 			PeerID:  ID,
 		})
@@ -541,7 +543,9 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 	if err != nil {
 		return err
 	}
-	nd.txWaitQ.Push(&TxMsgItem{
+	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
+	nd.txWaitQ.Push(TxHash, &TxMsgItem{
+		TxHash: TxHash,
 		Message: &TransactionMessage{
 			TxType: t,
 			Tx:     tx,
@@ -551,14 +555,12 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 	return nil
 }
 
-func (nd *Node) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
+func (nd *Node) addTx(TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
 	/*
 		if nd.txpool.Size() > 65535 {
 			return txpool.ErrTransactionPoolOverflowed
 		}
 	*/
-
-	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
 
 	cp := nd.cn.Provider()
 	if nd.txpool.IsExist(TxHash) {
@@ -656,6 +658,7 @@ func (nd *Node) cleanPool(b *types.Block) {
 
 // TxMsgItem used to store transaction message
 type TxMsgItem struct {
+	TxHash  hash.Hash256
 	Message *TransactionMessage
 	PeerID  string
 	ErrCh   *chan error

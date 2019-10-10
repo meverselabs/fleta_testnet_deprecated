@@ -59,7 +59,7 @@ type FormulatorNode struct {
 	blockQ               *queue.SortedQueue
 	txpool               *txpool.TransactionPool
 	txQ                  *queue.ExpireQueue
-	txWaitQ              *queue.Queue
+	txWaitQ              *queue.LinkedQueue
 	recvQueues           []*queue.Queue
 	recvQCond            *sync.Cond
 	sendQueues           []*queue.Queue
@@ -91,7 +91,7 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		blockQ:               queue.NewSortedQueue(),
 		txpool:               txpool.NewTransactionPool(),
 		txQ:                  queue.NewExpireQueue(),
-		txWaitQ:              queue.NewQueue(),
+		txWaitQ:              queue.NewLinkedQueue(),
 		recvQueues: []*queue.Queue{
 			queue.NewQueue(), //block
 			queue.NewQueue(), //tx
@@ -172,7 +172,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 					item := v.(*p2p.TxMsgItem)
 					p := debug.Start("Run.addTx")
-					if err := fr.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+					if err := fr.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
 						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
 							//rlog.Println("TransactionError", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
 							if len(item.PeerID) > 0 {
@@ -353,7 +353,9 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	if err != nil {
 		return err
 	}
-	fr.txWaitQ.Push(&p2p.TxMsgItem{
+	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+	fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+		TxHash: TxHash,
 		Message: &p2p.TransactionMessage{
 			TxType: t,
 			Tx:     tx,
@@ -363,14 +365,12 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	return nil
 }
 
-func (fr *FormulatorNode) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
+func (fr *FormulatorNode) addTx(TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
 	/*
 		if fr.txpool.Size() > 65535 {
 			return txpool.ErrTransactionPoolOverflowed
 		}
 	*/
-
-	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 
 	if fr.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
@@ -592,7 +592,9 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 		}
 		fr.statusLock.Unlock()
 	case *p2p.TransactionMessage:
-		fr.txWaitQ.Push(&p2p.TxMsgItem{
+		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), msg.TxType, msg.Tx)
+		fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+			TxHash:  TxHash,
 			Message: msg,
 			PeerID:  ID,
 		})
@@ -864,7 +866,9 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 				return txpool.ErrTransactionPoolOverflowed
 			}
 		*/
-		fr.txWaitQ.Push(&p2p.TxMsgItem{
+		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), msg.TxType, msg.Tx)
+		fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+			TxHash:  TxHash,
 			Message: msg,
 			PeerID:  ID,
 		})
