@@ -207,9 +207,11 @@ func (ci *ClientNode) AddTx(tx types.Transaction, sigs []common.Signature) error
 }
 
 func (ci *ClientNode) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
-	if ci.txpool.Size() > 65535 {
-		return txpool.ErrTransactionPoolOverflowed
-	}
+	/*
+		if ci.txpool.Size() > 65535 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+	*/
 
 	TxHash := chain.HashTransactionByType(ci.cs.cn.Provider().ChainID(), t, tx)
 

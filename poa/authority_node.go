@@ -160,9 +160,11 @@ func (an *AuthorityNode) AddTx(tx types.Transaction, sigs []common.Signature) er
 }
 
 func (an *AuthorityNode) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
-	if an.txpool.Size() > 65535 {
-		return txpool.ErrTransactionPoolOverflowed
-	}
+	/*
+		if an.txpool.Size() > 65535 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+	*/
 
 	TxHash := chain.HashTransactionByType(an.cs.cn.Provider().ChainID(), t, tx)
 

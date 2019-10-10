@@ -484,9 +484,11 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		nd.statusLock.Unlock()
 		return nil
 	case *TransactionMessage:
-		if nd.txWaitQ.Size() > 200000 {
-			return txpool.ErrTransactionPoolOverflowed
-		}
+		/*
+			if nd.txWaitQ.Size() > 200000 {
+				return txpool.ErrTransactionPoolOverflowed
+			}
+		*/
 		nd.txWaitQ.Push(&TxMsgItem{
 			Message: msg,
 			PeerID:  ID,
@@ -550,9 +552,11 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 }
 
 func (nd *Node) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
-	if nd.txpool.Size() > 65535 {
-		return txpool.ErrTransactionPoolOverflowed
-	}
+	/*
+		if nd.txpool.Size() > 65535 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+	*/
 
 	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
 

@@ -364,9 +364,11 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 }
 
 func (fr *FormulatorNode) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
-	if fr.txpool.Size() > 65535 {
-		return txpool.ErrTransactionPoolOverflowed
-	}
+	/*
+		if fr.txpool.Size() > 65535 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+	*/
 
 	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 
@@ -857,9 +859,11 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		}
 		return nil
 	case *p2p.TransactionMessage:
-		if fr.txWaitQ.Size() > 200000 {
-			return txpool.ErrTransactionPoolOverflowed
-		}
+		/*
+			if fr.txWaitQ.Size() > 200000 {
+				return txpool.ErrTransactionPoolOverflowed
+			}
+		*/
 		fr.txWaitQ.Push(&p2p.TxMsgItem{
 			Message: msg,
 			PeerID:  ID,
