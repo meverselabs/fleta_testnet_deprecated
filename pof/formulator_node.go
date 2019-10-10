@@ -1005,7 +1005,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		if err != nil {
 			return err
 		}
-		for i := 0; i < fr.Config.MaxTransactionsPerBlock; i++ {
+		for q := 0; q < fr.Config.MaxTransactionsPerBlock; q++ {
 			TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{}, []common.PublicHash{}); err != nil {
 				rlog.Println(err)
@@ -1015,6 +1015,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 
 		b, err := bc.Finalize(Timestamp)
 		if err != nil {
+			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage.Finalize", err)
 			return err
 		}
 
@@ -1024,12 +1025,14 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		lastHeader = &b.Header
 
 		if sig, err := fr.key.Sign(encoding.Hash(b.Header)); err != nil {
+			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage.Sign", nm.Block.Header.Height, err)
 			return err
 		} else {
 			nm.GeneratorSignature = sig
 		}
 
 		if err := fr.ms.SendTo(ID, nm); err != nil {
+			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage.SendTo", nm.Block.Header.Height, err)
 			return err
 		}
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", nm.Block.Header.Height, len(nm.Block.Transactions))

@@ -787,10 +787,12 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			rlog.Println(msg.Block.Header.Generator.String(), "if err := ob.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {")
 			return err
 		}
-		if msg.Block.Header.ContextHash != ctx.Hash() {
-			rlog.Println(msg.Block.Header.Generator.String(), "if msg.Block.Header.ContextHash != ctx.Hash() {")
-			return chain.ErrInvalidContextHash
-		}
+		/*
+			if msg.Block.Header.ContextHash != ctx.Hash() {
+				rlog.Println(msg.Block.Header.Generator.String(), "if msg.Block.Header.ContextHash != ctx.Hash() {")
+				return chain.ErrInvalidContextHash
+			}
+		*/
 
 		ob.round.RoundState = BlockVoteState
 		br.BlockGenMessage = msg

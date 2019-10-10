@@ -26,7 +26,7 @@ func init() {
 
 // Println calls l.Output to print to the logger.
 func Println(v ...interface{}) {
-	//logger.Println(v...)
+	logger.Println(v...)
 }
 
 // Fatal is equivalent to l.Print() followed by a call to os.Exit(1).

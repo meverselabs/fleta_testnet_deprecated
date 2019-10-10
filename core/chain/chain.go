@@ -271,10 +271,12 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 		IDMap[idx] = id
 	}
 
-	if b.Header.ContextHash != ctx.Hash() {
-		log.Println(ctx.Dump())
-		return ErrInvalidContextHash
-	}
+	/*
+		if b.Header.ContextHash != ctx.Hash() {
+			log.Println(ctx.Dump())
+			return ErrInvalidContextHash
+		}
+	*/
 
 	if ctx.StackSize() > 1 {
 		return ErrDirtyContext
