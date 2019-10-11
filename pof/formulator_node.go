@@ -65,9 +65,7 @@ type FormulatorNode struct {
 	txQ                  *queue.ExpireQueue
 	txWaitQ              *queue.LinkedQueue
 	recvQueues           []*queue.Queue
-	recvQCond            *sync.Cond
 	sendQueues           []*queue.Queue
-	sendQCond            *sync.Cond
 	isRunning            bool
 	closeLock            sync.RWMutex
 	isClose              bool
@@ -793,9 +791,10 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		if msg.TargetHeight < TargetHeight {
 			return nil
 		}
-		if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
-			log.Println("if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {")
-			return ErrInvalidRequest
+		if fr.lastReqMessage != nil {
+			if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
+				return nil
+			}
 		}
 		fr.lastObSignMessageMap[msg.TargetHeight] = msg
 
@@ -1072,16 +1071,19 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			ctx = ctx.NextContext(encoding.Hash(lastHeader), lastHeader.Timestamp)
 		}
 
-		Timestamp := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
+		Timestamp := uint64(time.Now().UnixNano())
 		log.Println("StartBlockTime", StartBlockTime, Timestamp > StartTime+uint64(3*time.Second), StartTime, Timestamp, StartTime+uint64(3*time.Second))
 		TooFar := uint64(time.Now().UnixNano() + int64(2*time.Second))
+		TooClose := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
 		if Timestamp > TooFar {
 			Timestamp = TooFar
+		}
+		if Timestamp < TooClose {
+			Timestamp = TooClose
 		}
 		if Timestamp <= ctx.LastTimestamp() {
 			Timestamp = ctx.LastTimestamp() + 1
 		}
-		Timestamp = uint64(time.Now().UnixNano())
 
 		var buffer bytes.Buffer
 		enc := encoding.NewEncoder(&buffer)

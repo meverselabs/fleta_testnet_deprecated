@@ -514,10 +514,12 @@ func (ms *NodeMesh) SendPeerList(targetHash string) {
 type RecvMessageItem struct {
 	PeerID  string
 	Message interface{}
+	Packet  []byte
 }
 
 type SendMessageItem struct {
 	Target  common.PublicHash
+	Address common.Address
 	Message interface{}
 	Limit   int
 	Packet  []byte

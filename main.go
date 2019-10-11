@@ -56,8 +56,8 @@ func test() error {
 			pubhash := common.NewPublicHash(Key.PublicKey())
 			ObserverKeys = append(ObserverKeys, pubhash)
 			NetAddressMap[pubhash] = ":400" + strconv.Itoa(i)
-			FrNetAddressMap[pubhash] = "ws://localhost:500" + strconv.Itoa(i)
-			HwNetAddressMap[pubhash] = "ws://localhost:490" + strconv.Itoa(i)
+			FrNetAddressMap[pubhash] = "localhost:500" + strconv.Itoa(i)
+			HwNetAddressMap[pubhash] = "localhost:490" + strconv.Itoa(i)
 		}
 	}
 

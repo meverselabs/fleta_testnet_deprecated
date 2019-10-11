@@ -2,6 +2,7 @@ package pof
 
 import (
 	"log"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -42,6 +43,8 @@ type ObserverNode struct {
 	messageQueue     *queue.Queue
 	requestTimer     *p2p.RequestTimer
 	blockQ           *queue.SortedQueue
+	recvQueues       []*queue.Queue
+	sendQueues       []*queue.Queue
 	isRunning        bool
 	closeLock        sync.RWMutex
 	isClose          bool
@@ -58,9 +61,17 @@ func NewObserverNode(key key.Key, NetAddressMap map[common.PublicHash]string, cs
 		round:        NewVoteRound(cs.cn.Provider().Height()+1, cs.maxBlocksPerFormulator),
 		ignoreMap:    map[common.Address]int64{},
 		myPublicHash: common.NewPublicHash(key.PublicKey()),
-		messageQueue: queue.NewQueue(),
 		blockQ:       queue.NewSortedQueue(),
-		cache:        gcache.New(500).LRU().Build(),
+		messageQueue: queue.NewQueue(),
+		recvQueues: []*queue.Queue{
+			queue.NewQueue(), //observer
+			queue.NewQueue(), //formulator
+		},
+		sendQueues: []*queue.Queue{
+			queue.NewQueue(), //observer
+			queue.NewQueue(), //formulator
+		},
+		cache: gcache.New(500).LRU().Build(),
 	}
 	ob.ms = NewObserverNodeMesh(key, NetAddressMap, ob)
 	ob.fs = NewFormulatorService(ob)
@@ -144,6 +155,61 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 			time.Sleep(30 * time.Second)
 			debug.Result()
 			log.Println("------------------------------")
+		}
+	}()
+
+	go func() {
+		for !ob.isClose {
+			hasMessage := false
+			for !ob.isClose {
+				for _, rq := range ob.recvQueues {
+					if v := rq.Pop(); v != nil {
+						hasMessage = true
+						item := v.(*p2p.RecvMessageItem)
+						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
+						if p, has := ob.fs.peerMap[item.PeerID]; has {
+							if err := ob.handleFormulatorMessage(p, item.Message, item.Packet); err != nil {
+								ob.ms.RemovePeer(item.PeerID)
+							}
+						}
+						p.Stop()
+					}
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	go func() {
+		for !ob.isClose {
+			hasMessage := false
+			for !ob.isClose {
+				for _, sq := range ob.sendQueues {
+					if v := sq.Pop(); v != nil {
+						hasMessage = true
+						item := v.(*p2p.SendMessageItem)
+						if len(item.Packet) > 0 {
+							p := debug.Start("Packet.Send")
+							if err := ob.fs.SendRawTo(item.Address, item.Packet); err != nil {
+								ob.fs.RemovePeer(string(item.Address[:]))
+							}
+							p.Stop()
+						} else {
+							p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Send")
+							if err := ob.fs.SendTo(item.Address, item.Message); err != nil {
+								ob.fs.RemovePeer(string(item.Address[:]))
+							}
+							p.Stop()
+						}
+					}
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
@@ -315,14 +381,14 @@ func (ob *ObserverNode) resetVoteRound(resetStat bool) {
 	}
 }
 
-func (ob *ObserverNode) onObserverRecv(p peer.Peer, m interface{}) error {
+func (ob *ObserverNode) onObserverRecv(ID string, m interface{}) error {
 	if msg, is := m.(*BlockGenMessage); is {
 		ob.messageQueue.Push(&messageItem{
 			Message: msg,
 		})
 	} else {
 		var pubhash common.PublicHash
-		copy(pubhash[:], []byte(p.ID()))
+		copy(pubhash[:], []byte(ID))
 		ob.messageQueue.Push(&messageItem{
 			PublicHash: pubhash,
 			Message:    m,
@@ -331,7 +397,31 @@ func (ob *ObserverNode) onObserverRecv(p peer.Peer, m interface{}) error {
 	return nil
 }
 
-func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte) error {
+func (ob *ObserverNode) onFormulatorRecv(ID string, m interface{}, raw []byte) error {
+	item := &p2p.RecvMessageItem{
+		PeerID:  ID,
+		Message: m,
+		Packet:  raw,
+	}
+	switch m.(type) {
+	case *BlockGenMessage:
+		ob.recvQueues[0].Push(item)
+	case *p2p.RequestMessage:
+		if ob.round.MinRoundVoteAck != nil && string(ob.round.MinRoundVoteAck.Formulator[:]) == ID {
+			ob.recvQueues[0].Push(item)
+		} else {
+			ob.recvQueues[1].Push(item)
+		}
+	case *p2p.StatusMessage:
+		ob.recvQueues[1].Push(item)
+	default:
+		panic(p2p.ErrUnknownMessage) //TEMP
+		return p2p.ErrUnknownMessage
+	}
+	return nil
+}
+
+func (ob *ObserverNode) handleFormulatorMessage(p peer.Peer, m interface{}, raw []byte) error {
 	cp := ob.cs.cn.Provider()
 
 	switch msg := m.(type) {
@@ -342,7 +432,6 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 		})
 	case *p2p.RequestMessage:
 		enable := false
-
 		if p.GuessHeight() < msg.Height {
 			CountMap := ob.fs.GuessHeightCountMap()
 			Height := cp.Height()
@@ -360,7 +449,6 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 				enable = rankMap[p.ID()]
 			}
 			if enable {
-				defer debug.Start("onFormulatorRecv.StatusMessage.enable").Stop()
 				if msg.Height > Height {
 					return nil
 				}
@@ -636,7 +724,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 						Formulator:           ob.round.MinRoundVoteAck.Formulator,
 						FormulatorPublicHash: ob.round.MinRoundVoteAck.FormulatorPublicHash,
 					}
-					ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, nm)
+					ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
 				}
 				ob.sendRoundSetup()
 
@@ -798,13 +886,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			return err
 		}
 		p.Stop()
-		p2 := debug.Start("BlockGen.ExecuteBlockOnContext.Hash")
 		if msg.Block.Header.ContextHash != ctx.Hash() {
-			p2.Stop()
 			rlog.Println(msg.Block.Header.Generator.String(), "if msg.Block.Header.ContextHash != ctx.Hash() {")
 			return chain.ErrInvalidContextHash
 		}
-		p2.Stop()
 
 		ob.round.RoundState = BlockVoteState
 		br.BlockGenMessage = msg
@@ -1026,13 +1111,14 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 					},
 					ObserverSignatures: sigs,
 				}
-				ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, nm)
+				ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
 				ob.fs.UpdateGuessHeight(ob.round.MinRoundVoteAck.Formulator, nm.TargetHeight)
 
 				if NextTop != nil {
-					ob.fs.SendTo(NextTop.Address, &p2p.BlockMessage{
+					ob.sendMessage(1, NextTop.Address, &p2p.BlockMessage{
 						Block: b,
 					})
+					ob.fs.UpdateGuessHeight(NextTop.Address, nm.TargetHeight)
 				}
 			} else {
 				if NextTop != nil {
@@ -1042,7 +1128,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 					ranks, err := ob.cs.rt.RanksInMap(adjustMap, 3)
 					if err == nil {
 						for _, v := range ranks {
-							ob.fs.SendTo(v.Address, &p2p.StatusMessage{
+							ob.sendMessage(1, v.Address, &p2p.StatusMessage{
 								Version:  b.Header.Version,
 								Height:   b.Header.Height,
 								LastHash: bh,
@@ -1186,4 +1272,19 @@ func (ob *ObserverNode) adjustFormulatorMap() map[common.Address]bool {
 		}
 	}
 	return FormulatorMap
+}
+
+func (ob *ObserverNode) sendMessagePacket(Priority int, Address common.Address, bs []byte, Height uint32) {
+	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Address: Address,
+		Packet:  bs,
+		Height:  Height,
+	})
+}
+
+func (ob *ObserverNode) sendMessage(Priority int, Address common.Address, m interface{}) {
+	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Address: Address,
+		Message: m,
+	})
 }

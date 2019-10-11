@@ -3,6 +3,7 @@ package pof
 import (
 	crand "crypto/rand"
 	"encoding/binary"
+	"net"
 	"sync"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/service/p2p"
 	"github.com/fletaio/fleta_testnet/service/p2p/peer"
-	"github.com/gorilla/websocket"
 )
 
 type FormulatorNodeMesh struct {
@@ -118,7 +118,14 @@ func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) error {
 }
 
 func (ms *FormulatorNodeMesh) client(Address string, TargetPubHash common.PublicHash) error {
-	conn, _, err := websocket.DefaultDialer.Dial(Address, nil)
+	/*
+		conn, _, err := websocket.DefaultDialer.Dial(Address, nil)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+	*/
+	conn, err := net.DialTimeout("tcp", Address, 10*time.Second)
 	if err != nil {
 		return err
 	}
@@ -141,7 +148,8 @@ func (ms *FormulatorNodeMesh) client(Address string, TargetPubHash common.Public
 	}
 
 	ID := string(pubhash[:])
-	p := p2p.NewWebsocketPeer(conn, ID, pubhash.String(), time.Now().UnixNano())
+	//p := p2p.NewWebsocketPeer(conn, ID, pubhash.String(), time.Now().UnixNano())
+	p := p2p.NewTCPPeer(conn, ID, pubhash.String(), time.Now().UnixNano())
 	ms.RemovePeer(ID)
 	ms.Lock()
 	ms.peerMap[ID] = p
@@ -173,6 +181,59 @@ func (ms *FormulatorNodeMesh) handleConnection(p peer.Peer) error {
 	}
 }
 
+func (ms *FormulatorNodeMesh) recvHandshake(conn net.Conn) error {
+	//rlog.Println("recvHandshake")
+	req := make([]byte, 40)
+	if _, err := p2p.FillBytes(conn, req); err != nil {
+		return err
+	}
+	ChainID := req[0]
+	if ChainID != ms.fr.cs.cn.Provider().ChainID() {
+		return chain.ErrInvalidChainID
+	}
+	timestamp := binary.LittleEndian.Uint64(req[32:])
+	diff := time.Duration(uint64(time.Now().UnixNano()) - timestamp)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > time.Second*30 {
+		return p2p.ErrInvalidHandshake
+	}
+	//rlog.Println("sendHandshakeAck")
+	if sig, err := ms.key.Sign(hash.Hash(req)); err != nil {
+		return err
+	} else if _, err := conn.Write(sig[:]); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ms *FormulatorNodeMesh) sendHandshake(conn net.Conn) (common.PublicHash, error) {
+	//rlog.Println("sendHandshake")
+	req := make([]byte, 40+common.AddressSize)
+	if _, err := crand.Read(req[:32]); err != nil {
+		return common.PublicHash{}, err
+	}
+	req[0] = ms.fr.cs.cn.Provider().ChainID()
+	binary.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
+	copy(req[40:], ms.fr.Config.Formulator[:])
+	if _, err := conn.Write(req); err != nil {
+		return common.PublicHash{}, err
+	}
+	//rlog.Println("recvHandshakeAsk")
+	var sig common.Signature
+	if _, err := p2p.FillBytes(conn, sig[:]); err != nil {
+		return common.PublicHash{}, err
+	}
+	pubkey, err := common.RecoverPubkey(hash.Hash(req), sig)
+	if err != nil {
+		return common.PublicHash{}, err
+	}
+	pubhash := common.NewPublicHash(pubkey)
+	return pubhash, nil
+}
+
+/*
 func (ms *FormulatorNodeMesh) recvHandshake(conn *websocket.Conn) error {
 	//rlog.Println("recvHandshake")
 	_, req, err := conn.ReadMessage()
@@ -232,3 +293,4 @@ func (ms *FormulatorNodeMesh) sendHandshake(conn *websocket.Conn) (common.Public
 	pubhash := common.NewPublicHash(pubkey)
 	return pubhash, nil
 }
+*/

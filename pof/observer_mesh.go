@@ -322,7 +322,7 @@ func (ms *ObserverNodeMesh) handleConnection(p peer.Peer) error {
 		if err != nil {
 			return err
 		}
-		if err := ms.ob.onObserverRecv(p, m); err != nil {
+		if err := ms.ob.onObserverRecv(p.ID(), m); err != nil {
 			return err
 		}
 	}

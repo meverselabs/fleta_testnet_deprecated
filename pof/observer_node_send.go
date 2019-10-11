@@ -31,13 +31,13 @@ func (ob *ObserverNode) sendRoundVote() error {
 		},
 	}
 	if gh, err := ob.fs.GuessHeight(Top.Address); err != nil {
-		ob.fs.SendTo(Top.Address, &p2p.StatusMessage{
+		ob.sendMessage(1, Top.Address, &p2p.StatusMessage{
 			Version:  cp.Version(),
 			Height:   height,
 			LastHash: lastHash,
 		})
 	} else if gh < height {
-		ob.fs.SendTo(Top.Address, &p2p.StatusMessage{
+		ob.sendMessage(1, Top.Address, &p2p.StatusMessage{
 			Version:  cp.Version(),
 			Height:   height,
 			LastHash: lastHash,

@@ -3,7 +3,7 @@ package pof
 import (
 	crand "crypto/rand"
 	"encoding/binary"
-	"net/http"
+	"net"
 	"sync"
 	"time"
 
@@ -15,8 +15,6 @@ import (
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/service/p2p"
 	"github.com/fletaio/fleta_testnet/service/p2p/peer"
-	"github.com/gorilla/websocket"
-	"github.com/labstack/echo"
 )
 
 // FormulatorService provides connectivity with formulators
@@ -82,22 +80,18 @@ func (ms *FormulatorService) SendTo(addr common.Address, m interface{}) error {
 	return nil
 }
 
-// BroadcastMessage sends a message to all peers
-func (ms *FormulatorService) BroadcastMessage(m interface{}) error {
-	data, err := p2p.MessageToPacket(m)
-	if err != nil {
-		return err
-	}
-
-	peers := []peer.Peer{}
+// SendTo sends a message to the formulator
+func (ms *FormulatorService) SendRawTo(addr common.Address, bs []byte) error {
 	ms.Lock()
-	for _, p := range ms.peerMap {
-		peers = append(peers, p)
-	}
+	p, has := ms.peerMap[string(addr[:])]
 	ms.Unlock()
+	if !has {
+		return ErrNotExistFormulatorPeer
+	}
 
-	for _, p := range peers {
-		p.SendRaw(data)
+	if err := p.SendRaw(bs); err != nil {
+		rlog.Println(err)
+		ms.RemovePeer(p.ID())
 	}
 	return nil
 }
@@ -139,49 +133,92 @@ func (ms *FormulatorService) server(BindAddress string) error {
 		rlog.Println("FormulatorService", common.NewPublicHash(ms.key.PublicKey()), "Start to Listen", BindAddress)
 	}
 
-	var upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
+	lstn, err := net.Listen("tcp", BindAddress)
+	if err != nil {
+		return err
 	}
-	e := echo.New()
-	e.GET("/", func(c echo.Context) error {
-		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	rlog.Println(common.NewPublicHash(ms.key.PublicKey()), "Start to Listen", BindAddress)
+	for {
+		conn, err := lstn.Accept()
 		if err != nil {
 			return err
 		}
-		defer conn.Close()
+		go func() {
+			defer conn.Close()
 
-		pubhash, err := ms.sendHandshake(conn)
-		if err != nil {
-			rlog.Println("[sendHandshake]", err)
-			return err
-		}
-		Formulator, err := ms.recvHandshake(conn)
-		if err != nil {
-			rlog.Println("[recvHandshakeAck]", err)
-			return err
-		}
-		if !ms.ob.cs.rt.IsFormulator(Formulator, pubhash) {
-			rlog.Println("[IsFormulator]", Formulator.String(), pubhash.String())
-			return err
-		}
+			pubhash, err := ms.sendHandshake(conn)
+			if err != nil {
+				rlog.Println("[sendHandshake]", err)
+				return
+			}
+			Formulator, err := ms.recvHandshake(conn)
+			if err != nil {
+				rlog.Println("[recvHandshakeAck]", err)
+				return
+			}
+			if !ms.ob.cs.rt.IsFormulator(Formulator, pubhash) {
+				rlog.Println("[IsFormulator]", Formulator.String(), pubhash.String())
+				return
+			}
 
-		ID := string(Formulator[:])
-		p := p2p.NewWebsocketPeer(conn, ID, Formulator.String(), time.Now().UnixNano())
-		ms.RemovePeer(ID)
-		ms.Lock()
-		ms.peerMap[ID] = p
-		ms.Unlock()
-		defer ms.RemovePeer(p.ID())
+			ID := string(Formulator[:])
+			p := p2p.NewTCPPeer(conn, ID, Formulator.String(), time.Now().UnixNano())
+			ms.RemovePeer(ID)
+			ms.Lock()
+			ms.peerMap[ID] = p
+			ms.Unlock()
+			defer ms.RemovePeer(p.ID())
 
-		if err := ms.handleConnection(p); err != nil {
-			rlog.Println("[handleConnection]", err)
+			if err := ms.handleConnection(p); err != nil {
+				rlog.Println("[handleConnection]", err)
+			}
+		}()
+	}
+	/*
+		var upgrader = websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+		e := echo.New()
+		e.GET("/", func(c echo.Context) error {
+			conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
+
+			pubhash, err := ms.sendHandshake(conn)
+			if err != nil {
+				rlog.Println("[sendHandshake]", err)
+				return err
+			}
+			Formulator, err := ms.recvHandshake(conn)
+			if err != nil {
+				rlog.Println("[recvHandshakeAck]", err)
+				return err
+			}
+			if !ms.ob.cs.rt.IsFormulator(Formulator, pubhash) {
+				rlog.Println("[IsFormulator]", Formulator.String(), pubhash.String())
+				return err
+			}
+
+			ID := string(Formulator[:])
+			p := p2p.NewWebsocketPeer(conn, ID, Formulator.String(), time.Now().UnixNano())
+			ms.RemovePeer(ID)
+			ms.Lock()
+			ms.peerMap[ID] = p
+			ms.Unlock()
+			defer ms.RemovePeer(p.ID())
+
+			if err := ms.handleConnection(p); err != nil {
+				rlog.Println("[handleConnection]", err)
+				return nil
+			}
 			return nil
-		}
-		return nil
-	})
-	return e.Start(BindAddress)
+		})
+		return e.Start(BindAddress)
+	*/
 }
 
 func (ms *FormulatorService) handleConnection(p peer.Peer) error {
@@ -202,12 +239,66 @@ func (ms *FormulatorService) handleConnection(p peer.Peer) error {
 		if err != nil {
 			return err
 		}
-		if err := ms.ob.onFormulatorRecv(p, m, bs); err != nil {
+		if err := ms.ob.onFormulatorRecv(p.ID(), m, bs); err != nil {
 			return err
 		}
 	}
 }
 
+func (ms *FormulatorService) recvHandshake(conn net.Conn) (common.Address, error) {
+	//rlog.Println("recvHandshake")
+	req := make([]byte, 40+common.AddressSize)
+	if _, err := p2p.FillBytes(conn, req); err != nil {
+		return common.Address{}, err
+	}
+	ChainID := req[0]
+	if ChainID != ms.ob.cs.cn.Provider().ChainID() {
+		return common.Address{}, chain.ErrInvalidChainID
+	}
+	timestamp := binary.LittleEndian.Uint64(req[32:])
+	var Formulator common.Address
+	copy(Formulator[:], req[40:])
+	diff := time.Duration(uint64(time.Now().UnixNano()) - timestamp)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > time.Second*30 {
+		return common.Address{}, p2p.ErrInvalidHandshake
+	}
+	//rlog.Println("sendHandshakeAck")
+	if sig, err := ms.key.Sign(hash.Hash(req)); err != nil {
+		return common.Address{}, err
+	} else if _, err := conn.Write(sig[:]); err != nil {
+		return common.Address{}, err
+	}
+	return Formulator, nil
+}
+
+func (ms *FormulatorService) sendHandshake(conn net.Conn) (common.PublicHash, error) {
+	//rlog.Println("sendHandshake")
+	req := make([]byte, 40)
+	if _, err := crand.Read(req[:32]); err != nil {
+		return common.PublicHash{}, err
+	}
+	req[0] = ms.ob.cs.cn.Provider().ChainID()
+	binary.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
+	if _, err := conn.Write(req); err != nil {
+		return common.PublicHash{}, err
+	}
+	//rlog.Println("recvHandshakeAsk")
+	var sig common.Signature
+	if _, err := p2p.FillBytes(conn, sig[:]); err != nil {
+		return common.PublicHash{}, err
+	}
+	pubkey, err := common.RecoverPubkey(hash.Hash(req), sig)
+	if err != nil {
+		return common.PublicHash{}, err
+	}
+	pubhash := common.NewPublicHash(pubkey)
+	return pubhash, nil
+}
+
+/*
 func (ms *FormulatorService) recvHandshake(conn *websocket.Conn) (common.Address, error) {
 	//rlog.Println("recvHandshake")
 	_, req, err := conn.ReadMessage()
@@ -268,6 +359,7 @@ func (ms *FormulatorService) sendHandshake(conn *websocket.Conn) (common.PublicH
 	pubhash := common.NewPublicHash(pubkey)
 	return pubhash, nil
 }
+*/
 
 // FormulatorMap returns a formulator list as a map
 func (ms *FormulatorService) FormulatorMap() map[common.Address]bool {

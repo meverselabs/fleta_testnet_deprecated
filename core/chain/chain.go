@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/fletaio/fleta_testnet/common/debug"
+
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/core/types"
@@ -265,6 +267,7 @@ func (cn *Chain) ConnectBlock(b *types.Block) error {
 }
 
 func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) error {
+	defer debug.Start("Execute.Connect").Stop()
 	IDMap := map[int]uint8{}
 	for id, idx := range cn.processIndexMap {
 		IDMap[idx] = id
@@ -309,10 +312,12 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 }
 
 func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error {
+	p := debug.Start("Execute.validateTransactionSignatures")
 	TxSigners, err := cn.validateTransactionSignatures(b)
 	if err != nil {
 		return err
 	}
+	p.Stop()
 	IDMap := map[int]uint8{}
 	for id, idx := range cn.processIndexMap {
 		IDMap[idx] = id
@@ -332,6 +337,7 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 		return ErrDirtyContext
 	}
 
+	p2 := debug.Start("Execute.Transctions")
 	// Execute Transctions
 	for i, tx := range b.Transactions {
 		signers := TxSigners[i]
@@ -384,6 +390,7 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 		}
 		ctw.Commit(sn)
 	}
+	p2.Stop()
 
 	if ctx.StackSize() > 1 {
 		return ErrDirtyContext

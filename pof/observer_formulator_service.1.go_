@@ -1,4 +1,4 @@
-package poa
+package pof
 
 import (
 	crand "crypto/rand"
@@ -19,33 +19,33 @@ import (
 	"github.com/labstack/echo"
 )
 
-// ClientService provides connectivity with clients
-type ClientService struct {
+// FormulatorService provides connectivity with formulators
+type FormulatorService struct {
 	sync.Mutex
 	key     key.Key
-	an      *AuthorityNode
+	ob      *ObserverNode
 	peerMap map[string]peer.Peer
 }
 
-// NewClientService returns a ClientService
-func NewClientService(an *AuthorityNode) *ClientService {
-	ms := &ClientService{
-		key:     an.key,
-		an:      an,
+// NewFormulatorService returns a FormulatorService
+func NewFormulatorService(ob *ObserverNode) *FormulatorService {
+	ms := &FormulatorService{
+		key:     ob.key,
+		ob:      ob,
 		peerMap: map[string]peer.Peer{},
 	}
 	return ms
 }
 
 // Run provides a server
-func (ms *ClientService) Run(BindAddress string) {
+func (ms *FormulatorService) Run(BindAddress string) {
 	if err := ms.server(BindAddress); err != nil {
 		panic(err)
 	}
 }
 
 // PeerCount returns a number of the peer
-func (ms *ClientService) PeerCount() int {
+func (ms *FormulatorService) PeerCount() int {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -53,7 +53,7 @@ func (ms *ClientService) PeerCount() int {
 }
 
 // RemovePeer removes peers from the mesh
-func (ms *ClientService) RemovePeer(ID string) {
+func (ms *FormulatorService) RemovePeer(ID string) {
 	ms.Lock()
 	p, has := ms.peerMap[ID]
 	if has {
@@ -66,13 +66,13 @@ func (ms *ClientService) RemovePeer(ID string) {
 	}
 }
 
-// SendTo sends a message to the client
-func (ms *ClientService) SendTo(pubhash common.PublicHash, m interface{}) error {
+// SendTo sends a message to the formulator
+func (ms *FormulatorService) SendTo(addr common.Address, m interface{}) error {
 	ms.Lock()
-	p, has := ms.peerMap[string(pubhash[:])]
+	p, has := ms.peerMap[string(addr[:])]
 	ms.Unlock()
 	if !has {
-		return ErrNotExistClientPeer
+		return ErrNotExistFormulatorPeer
 	}
 
 	if err := p.Send(m); err != nil {
@@ -83,7 +83,7 @@ func (ms *ClientService) SendTo(pubhash common.PublicHash, m interface{}) error 
 }
 
 // BroadcastMessage sends a message to all peers
-func (ms *ClientService) BroadcastMessage(m interface{}) error {
+func (ms *FormulatorService) BroadcastMessage(m interface{}) error {
 	data, err := p2p.MessageToPacket(m)
 	if err != nil {
 		return err
@@ -102,9 +102,41 @@ func (ms *ClientService) BroadcastMessage(m interface{}) error {
 	return nil
 }
 
-func (ms *ClientService) server(BindAddress string) error {
+// GuessHeightCountMap returns a number of the guess height from all peers
+func (ms *FormulatorService) GuessHeightCountMap() map[uint32]int {
+	CountMap := map[uint32]int{}
+	ms.Lock()
+	for _, p := range ms.peerMap {
+		CountMap[p.GuessHeight()]++
+	}
+	ms.Unlock()
+	return CountMap
+}
+
+// GuessHeight returns the guess height of the fomrulator
+func (ms *FormulatorService) GuessHeight(addr common.Address) (uint32, error) {
+	ms.Lock()
+	p, has := ms.peerMap[string(addr[:])]
+	ms.Unlock()
+	if !has {
+		return 0, ErrNotExistFormulatorPeer
+	}
+	return p.GuessHeight(), nil
+}
+
+// UpdateGuessHeight updates the guess height of the fomrulator
+func (ms *FormulatorService) UpdateGuessHeight(addr common.Address, height uint32) {
+	ms.Lock()
+	p, has := ms.peerMap[string(addr[:])]
+	ms.Unlock()
+	if has {
+		p.UpdateGuessHeight(height)
+	}
+}
+
+func (ms *FormulatorService) server(BindAddress string) error {
 	if debug.DEBUG {
-		rlog.Println("ClientService", common.NewPublicHash(ms.key.PublicKey()), "Start to Listen", BindAddress)
+		rlog.Println("FormulatorService", common.NewPublicHash(ms.key.PublicKey()), "Start to Listen", BindAddress)
 	}
 
 	var upgrader = websocket.Upgrader{
@@ -125,19 +157,18 @@ func (ms *ClientService) server(BindAddress string) error {
 			rlog.Println("[sendHandshake]", err)
 			return err
 		}
-		/*
-			if !ms.an.IsAcceptedClient(pubhash) {
-				rlog.Println("[IsAcceptedClient]", pubhash.String())
-				return err
-			}
-		*/
-		if err := ms.recvHandshake(conn); err != nil {
+		Formulator, err := ms.recvHandshake(conn)
+		if err != nil {
 			rlog.Println("[recvHandshakeAck]", err)
 			return err
 		}
+		if !ms.ob.cs.rt.IsFormulator(Formulator, pubhash) {
+			rlog.Println("[IsFormulator]", Formulator.String(), pubhash.String())
+			return err
+		}
 
-		ID := string(pubhash[:])
-		p := p2p.NewWebsocketPeer(conn, ID, pubhash.String(), time.Now().UnixNano())
+		ID := string(Formulator[:])
+		p := p2p.NewWebsocketPeer(conn, ID, Formulator.String(), time.Now().UnixNano())
 		ms.RemovePeer(ID)
 		ms.Lock()
 		ms.peerMap[ID] = p
@@ -153,12 +184,12 @@ func (ms *ClientService) server(BindAddress string) error {
 	return e.Start(BindAddress)
 }
 
-func (ms *ClientService) handleConnection(p peer.Peer) error {
+func (ms *FormulatorService) handleConnection(p peer.Peer) error {
 	if debug.DEBUG {
-		rlog.Println("anserver", common.NewPublicHash(ms.key.PublicKey()).String(), "Fromulator Connected", p.Name())
+		rlog.Println("Observer", common.NewPublicHash(ms.key.PublicKey()).String(), "Fromulator Connected", p.Name())
 	}
 
-	cp := ms.an.cs.cn.Provider()
+	cp := ms.ob.cs.cn.Provider()
 	height, lastHash, _ := cp.LastStatus()
 	p.Send(&p2p.StatusMessage{
 		Version:  cp.Version(),
@@ -167,53 +198,55 @@ func (ms *ClientService) handleConnection(p peer.Peer) error {
 	})
 
 	for {
-		m, _, err := p.ReadMessageData()
+		m, bs, err := p.ReadMessageData()
 		if err != nil {
 			return err
 		}
-		if err := ms.an.OnRecv(p, m); err != nil {
+		if err := ms.ob.onFormulatorRecv(p, m, bs); err != nil {
 			return err
 		}
 	}
 }
 
-func (ms *ClientService) recvHandshake(conn *websocket.Conn) error {
+func (ms *FormulatorService) recvHandshake(conn *websocket.Conn) (common.Address, error) {
 	//rlog.Println("recvHandshake")
 	_, req, err := conn.ReadMessage()
 	if err != nil {
-		return err
+		return common.Address{}, err
 	}
-	if len(req) != 40 {
-		return p2p.ErrInvalidHandshake
+	if len(req) != 40+common.AddressSize {
+		return common.Address{}, p2p.ErrInvalidHandshake
 	}
 	ChainID := req[0]
-	if ChainID != ms.an.cs.cn.Provider().ChainID() {
-		return chain.ErrInvalidChainID
+	if ChainID != ms.ob.cs.cn.Provider().ChainID() {
+		return common.Address{}, chain.ErrInvalidChainID
 	}
 	timestamp := binary.LittleEndian.Uint64(req[32:])
+	var Formulator common.Address
+	copy(Formulator[:], req[40:])
 	diff := time.Duration(uint64(time.Now().UnixNano()) - timestamp)
 	if diff < 0 {
 		diff = -diff
 	}
 	if diff > time.Second*30 {
-		return p2p.ErrInvalidHandshake
+		return common.Address{}, p2p.ErrInvalidHandshake
 	}
 	//rlog.Println("sendHandshakeAck")
 	if sig, err := ms.key.Sign(hash.Hash(req)); err != nil {
-		return err
+		return common.Address{}, err
 	} else if err := conn.WriteMessage(websocket.BinaryMessage, sig[:]); err != nil {
-		return err
+		return common.Address{}, err
 	}
-	return nil
+	return Formulator, nil
 }
 
-func (ms *ClientService) sendHandshake(conn *websocket.Conn) (common.PublicHash, error) {
+func (ms *FormulatorService) sendHandshake(conn *websocket.Conn) (common.PublicHash, error) {
 	//rlog.Println("sendHandshake")
 	req := make([]byte, 40)
 	if _, err := crand.Read(req[:32]); err != nil {
 		return common.PublicHash{}, err
 	}
-	req[0] = ms.an.cs.cn.Provider().ChainID()
+	req[0] = ms.ob.cs.cn.Provider().ChainID()
 	binary.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
 	if err := conn.WriteMessage(websocket.BinaryMessage, req); err != nil {
 		return common.PublicHash{}, err
@@ -236,16 +269,16 @@ func (ms *ClientService) sendHandshake(conn *websocket.Conn) (common.PublicHash,
 	return pubhash, nil
 }
 
-// clientMap returns a client list as a map
-func (ms *ClientService) clientMap() map[common.Address]bool {
+// FormulatorMap returns a formulator list as a map
+func (ms *FormulatorService) FormulatorMap() map[common.Address]bool {
 	ms.Lock()
 	defer ms.Unlock()
 
-	clientMap := map[common.Address]bool{}
+	FormulatorMap := map[common.Address]bool{}
 	for _, p := range ms.peerMap {
 		var addr common.Address
 		copy(addr[:], []byte(p.ID()))
-		clientMap[addr] = true
+		FormulatorMap[addr] = true
 	}
-	return clientMap
+	return FormulatorMap
 }
