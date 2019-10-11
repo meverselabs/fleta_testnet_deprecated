@@ -1,6 +1,7 @@
 package pof
 
 import (
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -138,6 +139,14 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 	go ob.fs.Run(BindFormulator)
 	go ob.requestTimer.Run()
 
+	go func() {
+		for !ob.isClose {
+			time.Sleep(30 * time.Second)
+			debug.Result()
+			log.Println("------------------------------")
+		}
+	}()
+
 	blockTimer := time.NewTimer(time.Millisecond)
 	queueTimer := time.NewTimer(time.Millisecond)
 	voteTimer := time.NewTimer(time.Millisecond)
@@ -180,9 +189,11 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 			for v != nil {
 				i++
 				item := v.(*messageItem)
+				p := debug.Start("handleObserverMessage")
 				ob.Lock()
 				ob.handleObserverMessage(item.PublicHash, item.Message, item.Raw)
 				ob.Unlock()
+				p.Stop()
 				v = ob.messageQueue.Pop()
 			}
 			queueTimer.Reset(10 * time.Millisecond)
@@ -330,14 +341,12 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 			Raw:     raw,
 		})
 	case *p2p.RequestMessage:
-		ob.Lock()
-		defer ob.Unlock()
-
 		enable := false
 
 		if p.GuessHeight() < msg.Height {
 			CountMap := ob.fs.GuessHeightCountMap()
-			if CountMap[cp.Height()] < 3 {
+			Height := cp.Height()
+			if CountMap[Height] < 3 {
 				enable = true
 			} else {
 				ranks, err := ob.cs.rt.RanksInMap(ob.adjustFormulatorMap(), 5)
@@ -351,7 +360,7 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 				enable = rankMap[p.ID()]
 			}
 			if enable {
-				Height := cp.Height()
+				defer debug.Start("onFormulatorRecv.StatusMessage.enable").Stop()
 				if msg.Height > Height {
 					return nil
 				}
@@ -380,9 +389,6 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 			}
 		}
 	case *p2p.StatusMessage:
-		ob.Lock()
-		defer ob.Unlock()
-
 		if p.GuessHeight() < msg.Height {
 			p.UpdateGuessHeight(msg.Height)
 		}
@@ -701,6 +707,8 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			ob.sendBlockVoteTo(br.BlockGenMessage, SenderPublicHash)
 		}
 	case *BlockGenMessage:
+		defer debug.Start("BlockGenMessage").Stop()
+
 		rlog.Println(cp.Height(), "BlockGenMessage", ob.round.RoundState, msg.Block.Header.Height, (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 
 		//[check round]
@@ -782,15 +790,21 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			return ErrInvalidVote
 		}
 
+		p := debug.Start("BlockGen.ExecuteBlockOnContext")
 		ctx := ob.cs.ct.NewContext()
 		if err := ob.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {
+			p.Stop()
 			rlog.Println(msg.Block.Header.Generator.String(), "if err := ob.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {")
 			return err
 		}
+		p.Stop()
+		p2 := debug.Start("BlockGen.ExecuteBlockOnContext.Hash")
 		if msg.Block.Header.ContextHash != ctx.Hash() {
+			p2.Stop()
 			rlog.Println(msg.Block.Header.Generator.String(), "if msg.Block.Header.ContextHash != ctx.Hash() {")
 			return chain.ErrInvalidContextHash
 		}
+		p2.Stop()
 
 		ob.round.RoundState = BlockVoteState
 		br.BlockGenMessage = msg
@@ -805,6 +819,8 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			})
 		}
 	case BlockGenRequestMessage:
+		defer debug.Start("BlockGenRequestMessage").Stop()
+
 		msgh := encoding.Hash(msg.BlockGenRequest)
 		if pubkey, err := common.RecoverPubkey(msgh, msg.Signature); err != nil {
 			return err
@@ -980,9 +996,12 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				TransactionResults:    br.BlockGenMessage.Block.TransactionResults,
 				Signatures:            append([]common.Signature{br.BlockGenMessage.GeneratorSignature}, sigs...),
 			}
+			p := debug.Start("BloackVote.Connect")
 			if err := ob.cs.ct.ConnectBlockWithContext(b, br.Context); err != nil {
+				p.Stop()
 				return err
 			} else {
+				p.Stop()
 				ob.broadcastStatus()
 			}
 			delete(ob.ignoreMap, ob.round.MinRoundVoteAck.Formulator)

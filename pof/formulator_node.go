@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mr-tron/base58/base58"
+
 	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/process/vault"
 
@@ -231,20 +233,20 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					if v := rq.Pop(); v != nil {
 						hasMessage = true
 						item := v.(*p2p.RecvMessageItem)
-						/*
-							if _, is := item.Message.(*p2p.TransactionMessage); !is {
-								switch msg := item.Message.(type) {
-								case *p2p.RequestMessage:
-									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-								case *p2p.StatusMessage:
-									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-								case *p2p.BlockMessage:
-									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-								default:
-									rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
-								}
+
+						if _, is := item.Message.(*p2p.TransactionMessage); !is {
+							switch msg := item.Message.(type) {
+							case *p2p.RequestMessage:
+								//rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *p2p.StatusMessage:
+								//rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
+							case *p2p.BlockMessage:
+								rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
+							default:
+								//rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
 							}
-						*/
+						}
+
 						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
 						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 							fr.nm.RemovePeer(item.PeerID)
@@ -333,6 +335,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	for !fr.isClose {
 		select {
 		case <-blockTimer.C:
+			p := debug.Start("blockQ.ConnectBlock")
 			fr.Lock()
 			hasItem := false
 			TargetHeight := uint64(fr.cs.cn.Provider().Height() + 1)
@@ -354,6 +357,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 				hasItem = true
 			}
 			fr.Unlock()
+			p.Stop()
 
 			if hasItem {
 				fr.broadcastStatus()
@@ -497,9 +501,11 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 func (fr *FormulatorNode) onObserverRecv(ID string, m interface{}) error {
-	/*
-		rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name())
-	*/
+	switch msg := m.(type) {
+	case *p2p.BlockMessage:
+		rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), msg.Block.Header.Height)
+	default:
+	}
 	if err := fr.handleObserverMessage(ID, m, 0); err != nil {
 		/*
 			rlog.Println("ObErrorMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), err)
@@ -737,18 +743,23 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 			return err
 		}
 		if msg.Formulator != Top.Address {
+			log.Println("if msg.Formulator != Top.Address {")
 			return ErrInvalidRequest
 		}
 		if msg.Formulator != fr.Config.Formulator {
+			log.Println("if msg.Formulator != fr.Config.Formulator {")
 			return ErrInvalidRequest
 		}
 		if msg.FormulatorPublicHash != common.NewPublicHash(fr.key.PublicKey()) {
+			log.Println("if msg.FormulatorPublicHash != common.NewPublicHash(fr.key.PublicKey()) {")
 			return ErrInvalidRequest
 		}
 		if msg.PrevHash != cp.LastHash() {
+			log.Println("if msg.PrevHash != cp.LastHash() {")
 			return ErrInvalidRequest
 		}
 		if msg.TargetHeight != Height+1 {
+			log.Println("if msg.TargetHeight != Height+1 {")
 			return ErrInvalidRequest
 		}
 		fr.lastReqMessage = msg
@@ -782,7 +793,8 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		if msg.TargetHeight < TargetHeight {
 			return nil
 		}
-		if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+10 {
+		if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
+			log.Println("if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {")
 			return ErrInvalidRequest
 		}
 		fr.lastObSignMessageMap[msg.TargetHeight] = msg
@@ -810,6 +822,7 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 				ctx := fr.lastContextes[0]
 
 				if sm.BlockSign.HeaderHash != encoding.Hash(GenMessage.Block.Header) {
+					log.Println("if sm.BlockSign.HeaderHash != encoding.Hash(GenMessage.Block.Header) {")
 					return ErrInvalidRequest
 				}
 
@@ -847,6 +860,16 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		}
 		return nil
 	case *p2p.BlockMessage:
+		fr.Lock()
+		if fr.lastReqMessage != nil {
+			if msg.Block.Header.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
+				if msg.Block.Header.Generator != fr.Config.Formulator {
+					fr.lastReqMessage = nil
+				}
+			}
+		}
+		fr.Unlock()
+
 		if err := fr.addBlock(msg.Block); err != nil {
 			if err == chain.ErrFoundForkedBlock {
 				panic(err)
@@ -875,6 +898,18 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 			}
 		}
 		fr.statusLock.Unlock()
+
+		IsGenerating := false
+		fr.Lock()
+		if fr.lastReqMessage != nil {
+			if msg.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
+				IsGenerating = true
+			}
+		}
+		fr.Unlock()
+		if IsGenerating {
+			return nil
+		}
 
 		TargetHeight := cp.Height() + 1
 		for TargetHeight <= msg.Height {
@@ -1009,7 +1044,6 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	start := time.Now().UnixNano()
 	StartTime := uint64(time.Now().UnixNano())
 	StartBlockTime := StartTime
-	bNoDelay := false
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator
 	if msg.TimeoutCount == 0 {
@@ -1017,10 +1051,8 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	}
 
 	LastTimestamp := cp.LastTimestamp()
-	if StartBlockTime < LastTimestamp {
+	if StartBlockTime <= LastTimestamp {
 		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
-	} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(500*time.Millisecond) {
-		bNoDelay = true
 	}
 
 	fc := encoding.Factory("transaction")
@@ -1040,16 +1072,16 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			ctx = ctx.NextContext(encoding.Hash(lastHeader), lastHeader.Timestamp)
 		}
 
-		Timestamp := StartBlockTime
-		log.Println("StartBlockTime", StartBlockTime, bNoDelay, Timestamp > StartTime+uint64(3*time.Second), StartTime, Timestamp, StartTime+uint64(3*time.Second))
-		if bNoDelay || Timestamp > StartTime+uint64(3*time.Second) {
-			Timestamp += uint64(i) * uint64(time.Millisecond)
-		} else {
-			Timestamp += uint64(i) * uint64(500*time.Millisecond)
+		Timestamp := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
+		log.Println("StartBlockTime", StartBlockTime, Timestamp > StartTime+uint64(3*time.Second), StartTime, Timestamp, StartTime+uint64(3*time.Second))
+		TooFar := uint64(time.Now().UnixNano() + int64(2*time.Second))
+		if Timestamp > TooFar {
+			Timestamp = TooFar
 		}
 		if Timestamp <= ctx.LastTimestamp() {
 			Timestamp = ctx.LastTimestamp() + 1
 		}
+		Timestamp = uint64(time.Now().UnixNano())
 
 		var buffer bytes.Buffer
 		enc := encoding.NewEncoder(&buffer)
@@ -1138,10 +1170,32 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			ExpectedTime = 500*time.Duration(Threshold)*time.Millisecond + time.Duration(i-Threshold+1)*200*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
-		if !bNoDelay && ExpectedTime > PastTime {
+		if ExpectedTime > PastTime {
+			IsEnd := false
 			fr.Unlock()
-			time.Sleep(ExpectedTime - PastTime)
+			if fr.lastReqMessage == nil {
+				IsEnd = true
+			}
+			if !IsEnd {
+				time.Sleep(ExpectedTime - PastTime)
+				if fr.lastReqMessage == nil {
+					IsEnd = true
+				}
+			}
 			fr.Lock()
+			if IsEnd {
+				return nil
+			}
+		} else {
+			IsEnd := false
+			fr.Unlock()
+			if fr.lastReqMessage == nil {
+				IsEnd = true
+			}
+			fr.Lock()
+			if IsEnd {
+				return nil
+			}
 		}
 	}
 	return nil

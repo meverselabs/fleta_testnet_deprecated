@@ -6,18 +6,15 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/common"
-	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
 	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/pile"
-	"github.com/fletaio/fleta_testnet/core/txpool"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
@@ -25,7 +22,6 @@ import (
 	"github.com/fletaio/fleta_testnet/process/gateway"
 	"github.com/fletaio/fleta_testnet/process/payment"
 	"github.com/fletaio/fleta_testnet/process/vault"
-	"github.com/fletaio/fleta_testnet/service/p2p"
 )
 
 func main() {
@@ -178,120 +174,122 @@ func test() error {
 		go fr.Run(":600" + strconv.Itoa(i))
 	}
 
-	for i, ndkey := range ndkeys {
-		back, err := backend.Create("buntdb", "./_test/ndata_"+strconv.Itoa(i)+"/context")
-		if err != nil {
-			return err
-		}
-		cdb, err := pile.Open("./_test/ndata_" + strconv.Itoa(i) + "/chain")
-		if err != nil {
-			return err
-		}
-		cdb.SetSyncMode(true)
-		st, err := chain.NewStore(back, cdb, ChainID, "FLEAT Mainnet", 0x0001)
-		if err != nil {
-			return err
-		}
-		defer st.Close()
+	/*
+		for i, ndkey := range ndkeys {
+			back, err := backend.Create("buntdb", "./_test/ndata_"+strconv.Itoa(i)+"/context")
+			if err != nil {
+				return err
+			}
+			cdb, err := pile.Open("./_test/ndata_" + strconv.Itoa(i) + "/chain")
+			if err != nil {
+				return err
+			}
+			cdb.SetSyncMode(true)
+			st, err := chain.NewStore(back, cdb, ChainID, "FLEAT Mainnet", 0x0001)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
 
-		cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-		app := app.NewFletaApp()
-		cn := chain.NewChain(cs, app, st)
-		cn.MustAddProcess(admin.NewAdmin(1))
-		vp := vault.NewVault(2)
-		cn.MustAddProcess(vp)
-		fp := formulator.NewFormulator(3)
-		cn.MustAddProcess(fp)
-		cn.MustAddProcess(gateway.NewGateway(4))
-		cn.MustAddProcess(payment.NewPayment(5))
-		ws := NewWatcher()
-		cn.MustAddService(ws)
-		if err := cn.Init(); err != nil {
-			return err
-		}
-
-		nd := p2p.NewNode(ndkey, NdNetAddressMap, cn, "./_test/ndata_"+strconv.Itoa(i)+"/peer")
-		if err := nd.Init(); err != nil {
-			panic(err)
-		}
-
-		go func() {
-			//time.Sleep(60 * time.Second)
-
-			if true {
-				go func() {
-					waitMap := map[common.Address]*chan struct{}{}
-					for _, Addr := range Addrs {
-						waitMap[Addr] = ws.addAddress(Addr)
-					}
-					for _, v := range Addrs {
-						go func(Addr common.Address) {
-							for {
-								time.Sleep(5 * time.Second)
-
-								Seq := st.Seq(Addr)
-								key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-								log.Println(Addr.String(), "Start Transaction", Seq)
-
-								for i := 0; i < 1; i++ {
-									Seq++
-									tx := &vault.Transfer{
-										Timestamp_: uint64(time.Now().UnixNano()),
-										Seq_:       Seq,
-										From_:      Addr,
-										To:         Addr,
-										Amount:     amount.NewCoinAmount(1, 0),
-									}
-									sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-									if err != nil {
-										panic(err)
-									}
-									if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
-										panic(err)
-									}
-									time.Sleep(100 * time.Millisecond)
-								}
-
-								pCh := waitMap[Addr]
-
-								if pCh == nil {
-									log.Println(Addr)
-								}
-
-								for range *pCh {
-									Seq++
-									//log.Println(Addr.String(), "Execute Transaction", Seq)
-									tx := &vault.Transfer{
-										Timestamp_: uint64(time.Now().UnixNano()),
-										Seq_:       Seq,
-										From_:      Addr,
-										To:         Addr,
-										Amount:     amount.NewCoinAmount(1, 0),
-									}
-									sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-									if err != nil {
-										panic(err)
-									}
-									if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
-										switch err {
-										case txpool.ErrExistTransaction:
-										case txpool.ErrTooFarSeq:
-											Seq--
-										}
-										time.Sleep(100 * time.Millisecond)
-										continue
-									}
-									time.Sleep(10 * time.Millisecond)
-								}
-							}
-						}(v)
-					}
-				}()
+			cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
+			app := app.NewFletaApp()
+			cn := chain.NewChain(cs, app, st)
+			cn.MustAddProcess(admin.NewAdmin(1))
+			vp := vault.NewVault(2)
+			cn.MustAddProcess(vp)
+			fp := formulator.NewFormulator(3)
+			cn.MustAddProcess(fp)
+			cn.MustAddProcess(gateway.NewGateway(4))
+			cn.MustAddProcess(payment.NewPayment(5))
+			ws := NewWatcher()
+			cn.MustAddService(ws)
+			if err := cn.Init(); err != nil {
+				return err
 			}
 
-			nd.Run(":601" + strconv.Itoa(i))
-		}()
-	}
+			nd := p2p.NewNode(ndkey, NdNetAddressMap, cn, "./_test/ndata_"+strconv.Itoa(i)+"/peer")
+			if err := nd.Init(); err != nil {
+				panic(err)
+			}
+
+			go func() {
+				//time.Sleep(60 * time.Second)
+
+				if true {
+					go func() {
+						waitMap := map[common.Address]*chan struct{}{}
+						for _, Addr := range Addrs {
+							waitMap[Addr] = ws.addAddress(Addr)
+						}
+						for _, v := range Addrs {
+							go func(Addr common.Address) {
+								for {
+									time.Sleep(5 * time.Second)
+
+									Seq := st.Seq(Addr)
+									key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
+									log.Println(Addr.String(), "Start Transaction", Seq)
+
+									for i := 0; i < 1; i++ {
+										Seq++
+										tx := &vault.Transfer{
+											Timestamp_: uint64(time.Now().UnixNano()),
+											Seq_:       Seq,
+											From_:      Addr,
+											To:         Addr,
+											Amount:     amount.NewCoinAmount(1, 0),
+										}
+										sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
+										if err != nil {
+											panic(err)
+										}
+										if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
+											panic(err)
+										}
+										time.Sleep(100 * time.Millisecond)
+									}
+
+									pCh := waitMap[Addr]
+
+									if pCh == nil {
+										log.Println(Addr)
+									}
+
+									for range *pCh {
+										Seq++
+										//log.Println(Addr.String(), "Execute Transaction", Seq)
+										tx := &vault.Transfer{
+											Timestamp_: uint64(time.Now().UnixNano()),
+											Seq_:       Seq,
+											From_:      Addr,
+											To:         Addr,
+											Amount:     amount.NewCoinAmount(1, 0),
+										}
+										sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
+										if err != nil {
+											panic(err)
+										}
+										if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
+											switch err {
+											case txpool.ErrExistTransaction:
+											case txpool.ErrTooFarSeq:
+												Seq--
+											}
+											time.Sleep(100 * time.Millisecond)
+											continue
+										}
+										time.Sleep(10 * time.Millisecond)
+									}
+								}
+							}(v)
+						}
+					}()
+				}
+
+				nd.Run(":601" + strconv.Itoa(i))
+			}()
+		}
+	*/
 
 	select {}
 	return nil
