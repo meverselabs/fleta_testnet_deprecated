@@ -18,8 +18,14 @@ func NewCopyReader(r io.Reader) *CopyReader {
 
 func (cr *CopyReader) Read(bs []byte) (int, error) {
 	n, err := cr.r.Read(bs)
-	cr.buffer.Write(bs)
+	if err == nil {
+		cr.buffer.Write(bs[:n])
+	}
 	return n, err
+}
+
+func (cr *CopyReader) Reset() {
+	cr.buffer.Reset()
 }
 
 func (cr *CopyReader) Bytes() []byte {

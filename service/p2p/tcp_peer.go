@@ -94,6 +94,7 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		} else {
 			atomic.StoreUint64(&p.pingCount, 0)
 			if v == p.pingType {
+				r.Reset()
 				continue
 			} else {
 				t = v

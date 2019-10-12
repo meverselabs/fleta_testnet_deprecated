@@ -64,12 +64,12 @@ func NewObserverNode(key key.Key, NetAddressMap map[common.PublicHash]string, cs
 		blockQ:       queue.NewSortedQueue(),
 		messageQueue: queue.NewQueue(),
 		recvQueues: []*queue.Queue{
-			queue.NewQueue(), //observer
-			queue.NewQueue(), //formulator
+			queue.NewQueue(),
+			queue.NewQueue(),
 		},
 		sendQueues: []*queue.Queue{
-			queue.NewQueue(), //observer
-			queue.NewQueue(), //formulator
+			queue.NewQueue(),
+			queue.NewQueue(),
 		},
 		cache: gcache.New(500).LRU().Build(),
 	}
@@ -169,7 +169,8 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
 						if p, has := ob.fs.peerMap[item.PeerID]; has {
 							if err := ob.handleFormulatorMessage(p, item.Message, item.Packet); err != nil {
-								ob.ms.RemovePeer(item.PeerID)
+								log.Println("Formulator Error", p.Name(), err)
+								ob.fs.RemovePeer(item.PeerID)
 							}
 						}
 						p.Stop()

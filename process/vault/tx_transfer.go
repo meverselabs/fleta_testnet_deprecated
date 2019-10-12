@@ -3,11 +3,60 @@ package vault
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
+
+	"github.com/fletaio/fleta_testnet/encoding"
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/core/types"
 )
+
+func init() {
+	encoding.Register(Transfer{}, func(enc *encoding.Encoder, rv reflect.Value) error {
+		item := rv.Interface().(Transfer)
+
+		if err := enc.EncodeUint64(item.Timestamp_); err != nil {
+			return err
+		}
+		if err := enc.EncodeUint64(item.Seq_); err != nil {
+			return err
+		}
+		if err := enc.Encode(item.From_); err != nil {
+			return err
+		}
+		if err := enc.Encode(item.To); err != nil {
+			return err
+		}
+		if err := enc.Encode(item.Amount); err != nil {
+			return err
+		}
+		return nil
+	}, func(dec *encoding.Decoder, rv reflect.Value) error {
+		item := &Transfer{}
+		if v, err := dec.DecodeUint64(); err != nil {
+			return err
+		} else {
+			item.Timestamp_ = v
+		}
+		if v, err := dec.DecodeUint64(); err != nil {
+			return err
+		} else {
+			item.Seq_ = v
+		}
+		if err := dec.Decode(&item.From_); err != nil {
+			return err
+		}
+		if err := dec.Decode(&item.To); err != nil {
+			return err
+		}
+		if err := dec.Decode(&item.Amount); err != nil {
+			return err
+		}
+		rv.Set(reflect.ValueOf(item).Elem())
+		return nil
+	})
+}
 
 // Transfer is a Transfer
 type Transfer struct {
