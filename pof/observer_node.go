@@ -221,7 +221,9 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 		select {
 		case <-blockTimer.C:
 			cp := ob.cs.cn.Provider()
+			p := debug.Start("LockWait")
 			ob.Lock()
+			p.Stop()
 			hasItem := false
 			TargetHeight := uint64(cp.Height() + 1)
 			Count := 0
@@ -256,16 +258,18 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 			for v != nil {
 				i++
 				item := v.(*messageItem)
-				p := debug.Start("handleObserverMessage")
+				p := debug.Start("LockWait")
 				ob.Lock()
+				p.Stop()
 				ob.handleObserverMessage(item.PublicHash, item.Message, item.Raw)
 				ob.Unlock()
-				p.Stop()
 				v = ob.messageQueue.Pop()
 			}
 			queueTimer.Reset(10 * time.Millisecond)
 		case <-voteTimer.C:
+			p := debug.Start("LockWait")
 			ob.Lock()
+			p.Stop()
 			cp := ob.cs.cn.Provider()
 			ob.syncVoteRound()
 			IsFailable := true
@@ -796,8 +800,6 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			ob.sendBlockVoteTo(br.BlockGenMessage, SenderPublicHash)
 		}
 	case *BlockGenMessage:
-		defer debug.Start("BlockGenMessage").Stop()
-
 		rlog.Println(cp.Height(), "BlockGenMessage", ob.round.RoundState, msg.Block.Header.Height, (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 
 		//[check round]
@@ -1116,8 +1118,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				ob.fs.UpdateGuessHeight(ob.round.MinRoundVoteAck.Formulator, nm.TargetHeight)
 
 				if NextTop != nil {
-					ob.sendMessage(1, NextTop.Address, &p2p.BlockMessage{
-						Block: b,
+					ob.sendMessage(1, NextTop.Address, &p2p.StatusMessage{
+						Version:  b.Header.Version,
+						Height:   b.Header.Height,
+						LastHash: bh,
 					})
 					ob.fs.UpdateGuessHeight(NextTop.Address, nm.TargetHeight)
 				}
@@ -1204,15 +1208,17 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 	case *p2p.StatusMessage:
 		Height := cp.Height()
 		if Height < msg.Height {
-			for q := uint32(0); q < 3; q++ {
-				BaseHeight := Height + q*10
-				if BaseHeight > msg.Height {
-					break
-				}
-				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
-					if !ob.requestTimer.Exist(i) {
-						if ob.blockQ.Find(uint64(i)) == nil {
-							ob.sendRequestBlockTo(SenderPublicHash, i)
+			if ob.round.MinRoundVoteAck == nil || msg.Height < ob.round.MinRoundVoteAck.TargetHeight+ob.cs.maxBlocksPerFormulator {
+				for q := uint32(0); q < 3; q++ {
+					BaseHeight := Height + q*10
+					if BaseHeight > msg.Height {
+						break
+					}
+					for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
+						if !ob.requestTimer.Exist(i) {
+							if ob.blockQ.Find(uint64(i)) == nil {
+								ob.sendRequestBlockTo(SenderPublicHash, i)
+							}
 						}
 					}
 				}

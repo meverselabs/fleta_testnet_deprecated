@@ -227,98 +227,18 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		for !fr.isClose {
 			hasMessage := false
 			for !fr.isClose {
-				for i, rq := range fr.recvQueues {
+				for _, rq := range fr.recvQueues {
 					if v := rq.Pop(); v != nil {
 						hasMessage = true
 						item := v.(*p2p.RecvMessageItem)
-
-						if _, is := item.Message.(*p2p.TransactionMessage); !is {
-							switch msg := item.Message.(type) {
-							case *p2p.RequestMessage:
-								//rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-							case *p2p.StatusMessage:
-								//rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-							case *p2p.BlockMessage:
-								rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-							default:
-								//rlog.Println("RecvMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
-							}
-						}
 
 						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
 						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 							fr.nm.RemovePeer(item.PeerID)
 						}
-						/*
-							if _, is := item.Message.(*p2p.TransactionMessage); !is {
-								switch msg := item.Message.(type) {
-								case *p2p.RequestMessage:
-									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-								case *p2p.StatusMessage:
-									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-								case *p2p.BlockMessage:
-									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-								default:
-									rlog.Println("HandleMessage", base58.Encode([]byte(item.PeerID[:])), reflect.ValueOf(item.Message).Elem().Type().Name())
-								}
-							}
-						*/
 						p.Stop()
 					}
-					sq := fr.sendQueues[i]
-					if v := sq.Pop(); v != nil {
-						hasMessage = true
-						item := v.(*p2p.SendMessageItem)
-						if len(item.Packet) > 0 {
-							p := debug.Start("BlockMessage.Send")
-							/*
-								rlog.Println("SendMessage", item.Target, item.Limit, "BlockMessage", item.Height)
-							*/
-							if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
-								fr.nm.RemovePeer(string(item.Target[:]))
-							}
-							p.Stop()
-						} else {
-							p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Send")
-							/*
-								if _, is := item.Message.(*p2p.TransactionMessage); !is {
-									switch msg := item.Message.(type) {
-									case *p2p.RequestMessage:
-										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-									case *p2p.StatusMessage:
-										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Height)
-									case *p2p.BlockMessage:
-										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name(), msg.Block.Header.Height)
-									default:
-										rlog.Println("SendMessage", item.Target, item.Limit, reflect.ValueOf(item.Message).Elem().Type().Name())
-									}
-								}
-							*/
-							var EmptyHash common.PublicHash
-							if bytes.Equal(item.Target[:], EmptyHash[:]) {
-								if item.Limit > 0 {
-									if err := fr.nm.ExceptCastLimit("", item.Message, item.Limit); err != nil {
-										fr.nm.RemovePeer(string(item.Target[:]))
-									}
-								} else {
-									if err := fr.nm.BroadcastMessage(item.Message); err != nil {
-										fr.nm.RemovePeer(string(item.Target[:]))
-									}
-								}
-							} else {
-								if item.Limit > 0 {
-									if err := fr.nm.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
-										fr.nm.RemovePeer(string(item.Target[:]))
-									}
-								} else {
-									if err := fr.nm.SendTo(item.Target, item.Message); err != nil {
-										fr.nm.RemovePeer(string(item.Target[:]))
-									}
-								}
-							}
-							p.Stop()
-						}
-					}
+
 				}
 				if !hasMessage {
 					break
@@ -327,14 +247,17 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
+	go fr.sendLoop()
+	go fr.sendLoop()
 
 	blockTimer := time.NewTimer(time.Millisecond)
 	blockRequestTimer := time.NewTimer(time.Millisecond)
 	for !fr.isClose {
 		select {
 		case <-blockTimer.C:
-			p := debug.Start("blockQ.ConnectBlock")
+			p := debug.Start("LockWait")
 			fr.Lock()
+			p.Stop()
 			hasItem := false
 			TargetHeight := uint64(fr.cs.cn.Provider().Height() + 1)
 			Count := 0
@@ -355,7 +278,6 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 				hasItem = true
 			}
 			fr.Unlock()
-			p.Stop()
 
 			if hasItem {
 				fr.broadcastStatus()
@@ -367,6 +289,56 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			fr.tryRequestNext()
 			blockRequestTimer.Reset(500 * time.Millisecond)
 		}
+	}
+}
+
+func (fr *FormulatorNode) sendLoop() {
+	for !fr.isClose {
+		hasMessage := false
+		for !fr.isClose {
+			for _, sq := range fr.sendQueues {
+				if v := sq.Pop(); v != nil {
+					hasMessage = true
+					item := v.(*p2p.SendMessageItem)
+					if len(item.Packet) > 0 {
+						p := debug.Start("BlockMessage.Send")
+						if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
+							fr.nm.RemovePeer(string(item.Target[:]))
+						}
+						p.Stop()
+					} else {
+						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Send")
+						var EmptyHash common.PublicHash
+						if bytes.Equal(item.Target[:], EmptyHash[:]) {
+							if item.Limit > 0 {
+								if err := fr.nm.ExceptCastLimit("", item.Message, item.Limit); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
+							} else {
+								if err := fr.nm.BroadcastMessage(item.Message); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
+							}
+						} else {
+							if item.Limit > 0 {
+								if err := fr.nm.ExceptCastLimit(string(item.Target[:]), item.Message, item.Limit); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
+							} else {
+								if err := fr.nm.SendTo(item.Target, item.Message); err != nil {
+									fr.nm.RemovePeer(string(item.Target[:]))
+								}
+							}
+						}
+						p.Stop()
+					}
+				}
+			}
+			if !hasMessage {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -695,7 +667,9 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 	case *BlockReqMessage:
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockReqMessage", msg.TargetHeight)
 
+		p := debug.Start("LockWait")
 		fr.Lock()
+		p.Stop()
 		defer fr.Unlock()
 
 		Height := cp.Height()
@@ -770,7 +744,9 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 			fr.genLock.Lock()
 			defer fr.genLock.Unlock()
 
+			p := debug.Start("LockWait.Gen")
 			fr.Lock()
+			p.Stop()
 			defer fr.Unlock()
 
 			if msg.TargetHeight <= cp.Height() {
@@ -784,7 +760,9 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 	case *BlockObSignMessage:
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockObSignMessage", msg.TargetHeight)
 
+		p := debug.Start("LockWait")
 		fr.Lock()
+		p.Stop()
 		defer fr.Unlock()
 
 		TargetHeight := fr.cs.cn.Provider().Height() + 1
@@ -859,7 +837,9 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		}
 		return nil
 	case *p2p.BlockMessage:
+		p := debug.Start("LockWait")
 		fr.Lock()
+		p.Stop()
 		if fr.lastReqMessage != nil {
 			if msg.Block.Header.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
 				if msg.Block.Header.Generator != fr.Config.Formulator {
@@ -899,7 +879,9 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 		fr.statusLock.Unlock()
 
 		IsGenerating := false
+		p := debug.Start("LockWait")
 		fr.Lock()
+		p.Stop()
 		if fr.lastReqMessage != nil {
 			if msg.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
 				IsGenerating = true
@@ -1184,7 +1166,9 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 					IsEnd = true
 				}
 			}
+			p := debug.Start("LockWait")
 			fr.Lock()
+			p.Stop()
 			if IsEnd {
 				return nil
 			}
@@ -1194,7 +1178,9 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			if fr.lastReqMessage == nil {
 				IsEnd = true
 			}
+			p := debug.Start("LockWait")
 			fr.Lock()
+			p.Stop()
 			if IsEnd {
 				return nil
 			}

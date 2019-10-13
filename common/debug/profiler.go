@@ -7,12 +7,18 @@ import (
 )
 
 var gProfiler = &Profiler{
-	PointTimeMap:  map[string]int64{},
-	PointCountMap: map[string]int{},
+	PointTimeMap:    map[string]int64{},
+	PointCountMap:   map[string]int{},
+	AverageValueMap: map[string]int64{},
+	AverageCountMap: map[string]int{},
 }
 
 func Start(name string) *Timer {
 	return gProfiler.Start(name)
+}
+
+func Average(name string, num int64) {
+	gProfiler.Average(name, num)
 }
 
 func Result() {
@@ -21,8 +27,10 @@ func Result() {
 
 type Profiler struct {
 	sync.Mutex
-	PointTimeMap  map[string]int64
-	PointCountMap map[string]int
+	PointTimeMap    map[string]int64
+	PointCountMap   map[string]int
+	AverageValueMap map[string]int64
+	AverageCountMap map[string]int
 }
 
 func (p *Profiler) Start(name string) *Timer {
@@ -33,20 +41,45 @@ func (p *Profiler) Start(name string) *Timer {
 	}
 }
 
+func (p *Profiler) Average(name string, num int64) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.AverageValueMap[name] += num
+	p.AverageCountMap[name]++
+}
+
 func (p *Profiler) Result() {
 	p.Lock()
 	defer p.Unlock()
 
-	for name, t := range p.PointTimeMap {
-		cnt := int64(p.PointCountMap[name])
-		if cnt > 0 {
-			log.Println(name, time.Duration(t), cnt, time.Duration(t/cnt))
-		} else {
-			log.Println(name, time.Duration(t), cnt)
+	if len(p.PointTimeMap) > 0 {
+		log.Println("[Point]")
+		for name, t := range p.PointTimeMap {
+			cnt := int64(p.PointCountMap[name])
+			if cnt > 0 {
+				log.Println(name, time.Duration(t), cnt, time.Duration(t/cnt))
+			} else {
+				log.Println(name, time.Duration(t), cnt)
+			}
 		}
+		p.PointTimeMap = map[string]int64{}
+		p.PointCountMap = map[string]int{}
 	}
-	p.PointTimeMap = map[string]int64{}
-	p.PointCountMap = map[string]int{}
+
+	if len(p.AverageValueMap) > 0 {
+		log.Println("[Average]")
+		for name, t := range p.AverageValueMap {
+			cnt := int64(p.AverageCountMap[name])
+			if cnt > 0 {
+				log.Println(name, int64(t), cnt, int64(t/cnt))
+			} else {
+				log.Println(name, int64(t), cnt)
+			}
+		}
+		p.AverageValueMap = map[string]int64{}
+		p.AverageCountMap = map[string]int{}
+	}
 }
 
 type Timer struct {

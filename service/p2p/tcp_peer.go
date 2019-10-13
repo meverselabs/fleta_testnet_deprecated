@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/common/debug"
+
 	"github.com/fletaio/fleta_testnet/common/util"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
@@ -110,6 +112,11 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 	} else if Len == 0 {
 		return nil, nil, ErrUnknownMessage
 	} else {
+		tn, _ := encoding.Factory("message").TypeName(t)
+		//debug.Average("Read."+p.name, int64(Len+7))
+		debug.Average("Read."+p.name, int64(Len+15))
+		defer debug.Start("MessageRead." + tn).Stop()
+
 		zbs := make([]byte, Len)
 		if _, err := FillBytes(r, zbs); err != nil {
 			return nil, nil, err
@@ -136,9 +143,12 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		p := debug.Start("Message." + tn)
 		if err := encoding.Unmarshal(bs, &m); err != nil {
+			p.Stop()
 			return nil, nil, err
 		}
+		p.Stop()
 		return m, r.Bytes(), nil
 	}
 }
@@ -157,6 +167,8 @@ func (p *TCPPeer) Send(m interface{}) error {
 
 // SendRaw sends packet to the TCPPeer
 func (p *TCPPeer) SendRaw(bs []byte) error {
+	debug.Average("Write."+p.name, int64(len(bs)))
+
 	if err := p.conn.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
 		return err
 	}
