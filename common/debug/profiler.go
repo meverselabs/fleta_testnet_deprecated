@@ -89,9 +89,11 @@ type Timer struct {
 }
 
 func (t *Timer) Stop() {
+	now := time.Now().UnixNano()
+
 	t.p.Lock()
 	defer t.p.Unlock()
 
-	t.p.PointTimeMap[t.Name] += time.Now().UnixNano() - t.Begin
+	t.p.PointTimeMap[t.Name] += now - t.Begin
 	t.p.PointCountMap[t.Name]++
 }
