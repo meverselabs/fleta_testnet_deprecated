@@ -5,9 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/binary"
 	"io"
-	"reflect"
 
-	"github.com/fletaio/fleta_testnet/common/debug"
 	"github.com/fletaio/fleta_testnet/common/util"
 	"github.com/fletaio/fleta_testnet/encoding"
 )
@@ -195,7 +193,7 @@ func MessageToPacket(m interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	debug.Average("Message."+reflect.ValueOf(m).Elem().Type().Name(), int64(len(bs)))
-	debug.Average("Packet."+reflect.ValueOf(m).Elem().Type().Name(), int64(len(wbs)))
+	//debug.Average("Message."+reflect.ValueOf(m).Elem().Type().Name(), int64(len(bs)))
+	//debug.Average("Packet."+reflect.ValueOf(m).Elem().Type().Name(), int64(len(wbs)))
 	return wbs, nil
 }

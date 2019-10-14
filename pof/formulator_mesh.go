@@ -97,6 +97,43 @@ func (ms *FormulatorNodeMesh) SendTo(ID string, m interface{}) error {
 	return nil
 }
 
+// SendRawTo sends a packet to the observer
+func (ms *FormulatorNodeMesh) SendRawTo(ID string, bs []byte) error {
+	ms.Lock()
+	p, has := ms.peerMap[ID]
+	ms.Unlock()
+	if !has {
+		return ErrNotExistObserverPeer
+	}
+
+	if err := p.SendRaw(bs); err != nil {
+		rlog.Println(err)
+		ms.RemovePeer(p.ID())
+	}
+	return nil
+}
+
+// SendRawAnyoneExcept sends a raw to any observer except the observer
+func (ms *FormulatorNodeMesh) SendRawAnyoneExcept(ID string, m interface{}) error {
+	var p peer.Peer
+	ms.Lock()
+	for k, v := range ms.peerMap {
+		if ID != k {
+			p = v
+		}
+	}
+	ms.Unlock()
+	if p == nil {
+		return ErrNotExistObserverPeer
+	}
+
+	if err := p.Send(m); err != nil {
+		rlog.Println(err)
+		ms.RemovePeer(p.ID())
+	}
+	return nil
+}
+
 // BroadcastMessage sends a message to all peers
 func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) error {
 	data, err := p2p.MessageToPacket(m)

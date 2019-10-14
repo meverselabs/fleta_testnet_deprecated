@@ -70,6 +70,7 @@ type FormulatorNode struct {
 	closeLock            sync.RWMutex
 	isClose              bool
 	cache                gcache.Cache
+	genMap               map[uint32]*BlockGenMessage
 
 	//TEMP
 	Txs      []types.Transaction
@@ -109,7 +110,8 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 			queue.NewQueue(), //tx
 			queue.NewQueue(), //peer
 		},
-		cache: gcache.New(500).LRU().Build(),
+		cache:  gcache.New(500).LRU().Build(),
+		genMap: map[uint32]*BlockGenMessage{},
 	}
 	fr.ms = NewFormulatorNodeMesh(key, NetAddressMap, fr)
 	fr.nm = p2p.NewNodeMesh(fr.cs.cn.Provider().ChainID(), ndkey, SeedNodeMap, fr, peerStorePath)
@@ -232,11 +234,9 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						hasMessage = true
 						item := v.(*p2p.RecvMessageItem)
 
-						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Recv")
 						if err := fr.handlePeerMessage(item.PeerID, item.Message); err != nil {
 							fr.nm.RemovePeer(item.PeerID)
 						}
-						p.Stop()
 					}
 
 				}
@@ -265,10 +265,12 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			for item != nil {
 				b := item.(*types.Block)
 				if err := fr.cs.cn.ConnectBlock(b); err != nil {
+					log.Println("ConnectBlock", err)
 					break
 				}
 				fr.cleanPool(b)
 				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
+				delete(fr.genMap, b.Header.Height)
 				TargetHeight++
 				Count++
 				if Count > 10 {
@@ -301,13 +303,10 @@ func (fr *FormulatorNode) sendLoop() {
 					hasMessage = true
 					item := v.(*p2p.SendMessageItem)
 					if len(item.Packet) > 0 {
-						p := debug.Start("BlockMessage.Send")
 						if err := fr.nm.SendRawTo(item.Target, item.Packet); err != nil {
 							fr.nm.RemovePeer(string(item.Target[:]))
 						}
-						p.Stop()
 					} else {
-						p := debug.Start(reflect.ValueOf(item.Message).Elem().Type().Name() + ".Send")
 						var EmptyHash common.PublicHash
 						if bytes.Equal(item.Target[:], EmptyHash[:]) {
 							if item.Limit > 0 {
@@ -330,7 +329,6 @@ func (fr *FormulatorNode) sendLoop() {
 								}
 							}
 						}
-						p.Stop()
 					}
 				}
 			}
@@ -474,6 +472,36 @@ func (fr *FormulatorNode) onObserverRecv(ID string, m interface{}) error {
 	switch msg := m.(type) {
 	case *p2p.BlockMessage:
 		rlog.Println("ObRecvMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), msg.Block.Header.Height)
+	case *BlockGenMessage:
+		rlog.Println("ObRecvGenMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), msg.Block.Header.Height)
+		fr.Lock()
+		defer fr.Unlock()
+
+		if msg.Block.Header.Height > fr.cs.cn.Provider().Height() {
+			fr.genMap[msg.Block.Header.Height] = msg
+		}
+		return nil
+	case *BlockObSignMessage:
+		rlog.Println("ObSignMessage", base58.Encode([]byte(ID[:])), reflect.ValueOf(m).Elem().Type().Name(), msg.TargetHeight)
+		fr.Lock()
+		defer fr.Unlock()
+
+		GenMessage, has := fr.genMap[msg.TargetHeight]
+		if has {
+			b := &types.Block{
+				Header:                GenMessage.Block.Header,
+				TransactionTypes:      GenMessage.Block.TransactionTypes,
+				Transactions:          GenMessage.Block.Transactions,
+				TransactionSignatures: GenMessage.Block.TransactionSignatures,
+				TransactionResults:    GenMessage.Block.TransactionResults,
+				Signatures:            append([]common.Signature{GenMessage.GeneratorSignature}, msg.ObserverSignatures...),
+			}
+			if err := fr.addBlock(b); err != nil {
+				return err
+			}
+			delete(fr.genMap, msg.TargetHeight)
+		}
+		return nil
 	default:
 	}
 	if err := fr.handleObserverMessage(ID, m, 0); err != nil {
@@ -818,6 +846,8 @@ func (fr *FormulatorNode) handleObserverMessage(ID string, m interface{}, RetryC
 				fr.cleanPool(b)
 				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
 
+				delete(fr.genMap, b.Header.Height)
+
 				fr.statusLock.Lock()
 				if status, has := fr.obStatusMap[ID]; has {
 					if status.Height < GenMessage.Block.Header.Height {
@@ -1137,7 +1167,11 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			nm.GeneratorSignature = sig
 		}
 
-		if err := fr.ms.SendTo(ID, nm); err != nil {
+		pc, err := p2p.MessageToPacket(nm)
+		if err != nil {
+			return err
+		}
+		if err := fr.ms.SendRawTo(ID, pc); err != nil {
 			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage.SendTo", nm.Block.Header.Height, err)
 			return err
 		}
@@ -1211,7 +1245,6 @@ func (fr *FormulatorNode) broadcastMessage(Priority int, m interface{}) {
 }
 
 func (fr *FormulatorNode) limitCastMessage(Priority int, m interface{}) {
-	defer debug.Start("limitCastMessage").Stop()
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
 		Message: m,
 		Limit:   3,
@@ -1219,7 +1252,6 @@ func (fr *FormulatorNode) limitCastMessage(Priority int, m interface{}) {
 }
 
 func (fr *FormulatorNode) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
-	defer debug.Start("exceptLimitCastMessage").Stop()
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
 		Target:  Target,
 		Message: m,

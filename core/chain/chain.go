@@ -267,7 +267,7 @@ func (cn *Chain) ConnectBlock(b *types.Block) error {
 }
 
 func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) error {
-	defer debug.Start("Execute.Connect").Stop()
+	defer debug.Start("Chain.ConnectWithContext").Stop()
 	IDMap := map[int]uint8{}
 	for id, idx := range cn.processIndexMap {
 		IDMap[idx] = id
@@ -312,7 +312,9 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 }
 
 func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error {
-	p := debug.Start("Execute.validateTransactionSignatures")
+	defer debug.Start("Chain.Execute").Stop()
+
+	p := debug.Start("Chain.Execute.validateTransactionSignatures")
 	TxSigners, err := cn.validateTransactionSignatures(b)
 	if err != nil {
 		return err
@@ -337,7 +339,7 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 		return ErrDirtyContext
 	}
 
-	p2 := debug.Start("Execute.Transctions")
+	p2 := debug.Start("Chain.Execute.Transctions")
 	// Execute Transctions
 	for i, tx := range b.Transactions {
 		signers := TxSigners[i]
@@ -455,13 +457,16 @@ func (cn *Chain) validateHeader(bh *types.Header) error {
 
 func (cn *Chain) validateTransactionSignatures(b *types.Block) ([][]common.PublicHash, error) {
 	var wg sync.WaitGroup
-	cpuCnt := runtime.NumCPU()
+	cpuCnt := runtime.NumCPU() * 2
 	if len(b.Transactions) < 1000 {
 		cpuCnt = 1
 	}
 	txUnit := len(b.Transactions) / cpuCnt
 	TxHashes := make([]hash.Hash256, len(b.Transactions)+1)
 	TxSigners := make([][]common.PublicHash, len(b.Transactions))
+	for i := range b.Transactions {
+		TxSigners[i] = make([]common.PublicHash, len(b.TransactionSignatures[i]))
+	}
 	TxHashes[0] = b.Header.PrevHash
 	if len(b.Transactions)%cpuCnt != 0 {
 		txUnit++
@@ -482,16 +487,14 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block) ([][]common.Publi
 
 				TxHash := HashTransactionByType(cn.store.chainID, t, tx)
 				TxHashes[sidx+q+1] = TxHash
-				signers := make([]common.PublicHash, 0, len(sigs))
-				for _, sig := range sigs {
+				for k, sig := range sigs {
 					pubkey, err := common.RecoverPubkey(TxHash, sig)
 					if err != nil {
 						errs <- err
 						return
 					}
-					signers = append(signers, common.NewPublicHash(pubkey))
+					TxSigners[sidx+q][k] = common.NewPublicHash(pubkey)
 				}
-				TxSigners[sidx+q] = signers
 			}
 		}(i*txUnit, b.Transactions[i*txUnit:lastCnt])
 	}

@@ -4,8 +4,10 @@ import (
 	"encoding/hex"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/common"
@@ -25,6 +27,32 @@ import (
 )
 
 func main() {
+	nm := types.NewStringBytesMap()
+	t := time.Now()
+	for i := 0; i < 50000; i++ {
+		nm.Put(strconv.Itoa(i), []byte(strconv.Itoa(i)+"."))
+	}
+	nm.EachAll(func(k string, v []byte) bool {
+		return true
+	})
+	log.Println(time.Now().Sub(t))
+
+	t = time.Now()
+	om := map[string][]byte{}
+	for i := 0; i < 50000; i++ {
+		om[strconv.Itoa(i)] = []byte(strconv.Itoa(i) + ".")
+	}
+	ks := make([]string, 0, len(om))
+	for k := range om {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	for _, k := range ks {
+		om[k] = om[k]
+	}
+	log.Println(time.Now().Sub(t))
+	return
+
 	if err := test(); err != nil {
 		panic(err)
 	}

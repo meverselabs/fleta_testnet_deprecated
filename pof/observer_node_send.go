@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/fletaio/fleta_testnet/common"
-	"github.com/fletaio/fleta_testnet/common/debug"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
 	"github.com/fletaio/fleta_testnet/service/p2p"
@@ -292,7 +291,6 @@ func (ob *ObserverNode) sendBlockGenTo(gen *BlockGenMessage, TargetPubHash commo
 	if TargetPubHash == ob.myPublicHash {
 		return nil
 	}
-	defer debug.Start("sendBlockGenTo").Stop()
 	ob.ms.SendTo(TargetPubHash, gen)
 	return nil
 }
@@ -331,8 +329,6 @@ func (ob *ObserverNode) sendBlockVoteTo(gen *BlockGenMessage, TargetPubHash comm
 }
 
 func (ob *ObserverNode) sendBlockGenRequest(br *BlockRound) error {
-	defer debug.Start("sendBlockGenRequest").Stop()
-
 	now := uint64(time.Now().UnixNano())
 	if br.LastBlockGenRequestTime+uint64(1*time.Second) > now {
 		return nil
